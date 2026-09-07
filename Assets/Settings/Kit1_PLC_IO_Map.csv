@@ -1,0 +1,19 @@
+direction,logical_tag,physical_address,description
+DI,DI_MagazinePartPresent,TBD,Workpiece present at magazine discharge slot
+DI,DI_MagazineEmpty,TBD,No workpieces remaining in magazine
+DI,DI_PartOnLift,TBD,Workpiece transferred onto sorting lift
+DI,DI_MetalDetected,TBD,Inductive sensor detects metallic workpiece
+DI,DI_PlasticDetected,TBD,Capacitive sensor detects plastic workpiece
+DI,DI_LiftUp,TBD,Vertical lift upper reed switch
+DI,DI_LiftDown,TBD,Vertical lift lower reed switch
+DI,DI_Cylinder1Extended,TBD,Feed cylinder extended reed switch
+DI,DI_Cylinder1Retracted,TBD,Feed cylinder retracted reed switch
+DI,DI_Cylinder2Extended,TBD,Lower ejector extended reed switch
+DI,DI_Cylinder2Retracted,TBD,Lower ejector retracted reed switch
+DI,DI_Cylinder3Extended,TBD,Upper ejector extended reed switch
+DI,DI_Cylinder3Retracted,TBD,Upper ejector retracted reed switch
+DI,DI_WorkpieceReleased,SIMULATED,Workpiece released from controlled motion into gravity
+DO,DO_Cylinder1Extend,TBD,Command feed cylinder to extend; false commands retract
+DO,DO_Cylinder2Extend,TBD,Command lower ejector to extend; false commands retract
+DO,DO_Cylinder3Extend,TBD,Command upper ejector to extend; false commands retract
+DO,DO_LiftUp,TBD,Command lift up; false commands lift down
