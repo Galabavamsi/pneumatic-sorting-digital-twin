@@ -1,0 +1,26 @@
+direction,logical_tag,physical_address,description
+DI,DI_MagazinePartPresent,TBD,Workpiece available at the magazine discharge level
+DI,DI_MagazineEmpty,TBD,No stored or active workpieces remain
+DI,DI_PartAtStampA,TBD,Active workpiece is at stamping station A
+DI,DI_PartAtStampB,TBD,Workpiece is waiting at stamping station B
+DI,DI_MetalDetected,TBD,Inductive sensor detects a metallic workpiece
+DI,DI_CapacitiveDetected,TBD,Capacitive sensor detects a workpiece
+DI,DI_FeedHome,TBD,Feed cylinder home reed switch
+DI,DI_FeedStage,TBD,Feed cylinder at staging position
+DI,DI_FeedEject,TBD,Feed cylinder at full eject position
+DI,DI_TransferHome,TBD,Transfer cylinder home reed switch
+DI,DI_TransferStage,TBD,Transfer cylinder at staging position
+DI,DI_TransferEject,TBD,Transfer cylinder at full eject position
+DI,DI_StampAUp,TBD,Stamp A upper reed switch
+DI,DI_StampADown,TBD,Stamp A lower reed switch
+DI,DI_StampBUp,TBD,Stamp B upper reed switch
+DI,DI_StampBDown,TBD,Stamp B lower reed switch
+DI,DI_UtilityReady,SIMULATED,24 VDC enabled E-stop reset and effective pressure at least 3.5 bar
+DO,DO_FeedHome,TBD,Command feed cylinder home
+DO,DO_FeedStage,TBD,Command feed cylinder to stamping transfer position
+DO,DO_FeedEject,TBD,Command feed cylinder to full bin-eject position
+DO,DO_TransferHome,TBD,Command transfer cylinder home
+DO,DO_TransferStage,TBD,Command transfer cylinder to stamping position
+DO,DO_TransferEject,TBD,Command transfer cylinder to full bin-eject position
+DO,DO_StampADown,TBD,Command stamp A down; false commands up
+DO,DO_StampBDown,TBD,Command stamp B down; false commands up

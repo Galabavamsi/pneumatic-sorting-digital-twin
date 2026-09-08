@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20prototype-19a974)](#project-status)
 
-An open-source Unity digital-twin workspace for modular electropneumatic automation kits. Kit 1 provides a complete sorting simulation; Kit 2 now provides a segmented stamping-module viewer ready for mechanism mapping and simulation.
+An open-source Unity digital-twin workspace for modular electropneumatic automation kits. Kit 1 provides a complete sorting simulation, and Kit 2 provides a complete offline stamping and material-routing simulation.
 
 The current release runs completely offline. No PLC or XR headset is required.
 
@@ -24,7 +24,7 @@ The current release runs completely offline. No PLC or XR headset is required.
 - E-stop, pressure loss, air leak, stuck actuator, and sensor-failure injection
 - 10 Hz historian, CSV export, and local actuator/telemetry replay
 - Orbit, pan, zoom, and component identification tools
-- Dedicated Kit 2 stamping-module scene with 66 selectable CAD components
+- Complete Kit 2 stamping workflow with two horizontal cylinders, two stamps, a 16-piece physical magazine, dual-bin routing, logical PLC I/O, utilities, faults, automatic/step/pause/safe-stop control, and an engineering dashboard
 
 ![Engineering I/O monitor](Documentation/Images/engineering-io-monitor.png)
 
@@ -49,9 +49,9 @@ git lfs pull
 1. Open Unity Hub and select **Add → Add project from disk**.
 2. Choose the cloned repository folder.
 3. Open it with Unity `6000.6.0f1`.
-4. Open `Assets/Scenes/Kit1Viewer.unity` for the sorting simulation or `Assets/Scenes/Kit2Viewer.unity` for Kit 2 component inspection.
+4. Open `Assets/Scenes/Kit1Viewer.unity` for the sorting simulation or `Assets/Scenes/Kit2Viewer.unity` for the stamping simulation.
 5. Wait for Unity to finish importing and compiling.
-6. Select **Tools → Kit 1 Digital Twin → Validate Project**.
+6. Select the matching **Tools → Kit 1/Kit 2 Digital Twin → Validate Project** command.
 7. Enter Play mode.
 
 For a readable editor preview, use `1280 × 720`, or keep QHD at its fitted Game-view scale. The Unity Game-view **Scale** slider magnifies and crops the whole render; it is not the machine camera zoom.
@@ -80,6 +80,8 @@ The magazine contents are randomized at the beginning of an automatic run. Blue 
 | Operator HMI | `F2` |
 | Expand/collapse operator HMI | `Tab` |
 | Start automatic batch | `S` |
+| Kit 2 step / advance | `N` |
+| Kit 2 pause / resume | `P` |
 | Safe stop | `X` |
 | Master reset | `M` |
 | Select metal/plastic manually | `1` / `2` |
@@ -87,11 +89,15 @@ The magazine contents are randomized at the beginning of an automatic run. Blue 
 | Lower ejector extend/retract/toggle | `T` / `G` / `Y` |
 | Upper ejector extend/retract/toggle | `U` / `J` / `I` |
 | Lift up/down/toggle | `V` / `C` / `B` |
+| Kit 2 Cylinder 1 stage/home/eject | `E` / `R` / `Shift+E` |
+| Kit 2 Cylinder 2 stage/home/eject | `T` / `G` / `Shift+T` |
+| Kit 2 Stamp A down/up | `U` / `J` |
+| Kit 2 Stamp B down/up | `I` / `K` |
 | Previous/next component | `[` / `]` or arrow keys |
 | Hide/focus selected component | `H` / `F` |
 | Clear component selection | `Esc` |
 
-Manual actuator controls are intended for commissioning tests while the automatic sequence is stopped.
+Manual actuator controls are intended for commissioning tests while the automatic sequence is stopped. In Kit 2, `N` advances step mode, `P` pauses/resumes, `E`/`R`/`Shift+E` control Cylinder 1, `T`/`G`/`Shift+T` control Cylinder 2, and `U`/`J` plus `I`/`K` control Stamps A and B.
 
 ## Engineering dashboard
 
@@ -133,13 +139,13 @@ See [Architecture](Documentation/ARCHITECTURE.md) for component responsibilities
 
 ## Project status
 
-Kit 1 is an offline simulation and PLC-ready software prototype. Kit 2 has completed CAD segmentation and Unity viewer integration; actuator, sensor, and sequence mapping is the next milestone.
+Kit 1 and Kit 2 are offline simulations and PLC-ready software prototypes. Kit 2 includes calibrated motion, generalized workpiece physics, material detection, stamping recipes, dual-bin discharge, a controller-neutral tag layer, simulated utilities/faults, and commissioning diagnostics.
 
 ![Kit 2 segmented stamping module](Documentation/Images/kit2-stamping-components.png)
 
 The project does **not** yet connect to physical hardware. Logical tag names intentionally remain independent of controller addresses until the PLC model, program, network, and wiring map are confirmed.
 
-See the [validation record](Documentation/VALIDATION.md) and [roadmap](Documentation/ROADMAP.md).
+See the [Kit 1 validation record](Documentation/VALIDATION.md), [Kit 2 validation record](Documentation/KIT2_VALIDATION.md), and [roadmap](Documentation/ROADMAP.md).
 
 ## Safety
 

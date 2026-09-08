@@ -49,8 +49,9 @@ namespace Kit1DigitalTwin
                 return;
             }
 
-            if (Kit1DigitalTwin.Hmi.Kit1EngineeringDashboard.ContainsScreenPoint(
-                Mouse.current.position.ReadValue()))
+            Vector2 pointerPosition = Mouse.current.position.ReadValue();
+            if (Kit1DigitalTwin.Hmi.Kit1EngineeringDashboard.ContainsScreenPoint(pointerPosition) ||
+                Kit1DigitalTwin.Hmi.Kit2EngineeringDashboard.ContainsScreenPoint(pointerPosition))
             {
                 return;
             }

@@ -17,6 +17,16 @@
 - [x] Add Kit 2 stamping-module prefab and viewer scene
 - [x] Make component inspection reusable across kit scenes
 - [x] Identify Kit 2 cylinder 1 rod and pusher
+- [x] Identify Kit 2 cylinder 2 rod and pusher
+- [x] Identify both Kit 2 vertical stamping rod/tool pairs
+- [x] Map the 16-piece Kit 2 magazine stack
+- [x] Add centered workpiece physics and two-station FIFO flow for Kit 2
+- [x] Implement the controller-neutral Kit 2 automatic stamping sequence
+- [x] Add Kit 2 logical PLC I/O and simulated sensor boundary
+- [x] Add Kit 2 electropneumatic utilities and fault injection
+- [x] Add Kit 2 production counters and engineering dashboard
+- [x] Add Kit 2 project validator, PLC tag map, and acceptance checklist
+- [x] Validate continuous, paused, stepped, and safe-stop Kit 2 cycles
 
 ## Next
 
@@ -29,8 +39,6 @@
 
 ## Additional kits
 
-- [ ] Identify and label Kit 2 actuators, tooling, feeders, sensors, and workpieces
-- [ ] Calibrate Kit 2 actuator axes and stamping sequence
 - [ ] Import and segment Kits 3-5 CAD assemblies
 - [ ] Create a configuration/adapter package per kit
 - [ ] Map mechanisms, sensors, outputs, and sequences

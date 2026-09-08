@@ -62,7 +62,8 @@ namespace Kit1DigitalTwin
             if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
             {
                 Vector2 pointerPosition = Mouse.current.position.ReadValue();
-                if (!Kit1DigitalTwin.Hmi.Kit1EngineeringDashboard.ContainsScreenPoint(pointerPosition))
+                if (!Kit1DigitalTwin.Hmi.Kit1EngineeringDashboard.ContainsScreenPoint(pointerPosition) &&
+                    !Kit1DigitalTwin.Hmi.Kit2EngineeringDashboard.ContainsScreenPoint(pointerPosition))
                 {
                     SelectFromPointer(pointerPosition);
                 }

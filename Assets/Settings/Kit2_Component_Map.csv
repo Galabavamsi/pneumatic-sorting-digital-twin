@@ -1,3 +1,10 @@
 role,component,status,notes
 cylinder_1_rod,Component_029,identified,Horizontal feed cylinder rod
 cylinder_1_pusher,Component_018,identified,L-shaped pusher connected to cylinder 1 rod
+cylinder_2_rod,Component_030,identified,Second horizontal cylinder rod
+cylinder_2_pusher,Component_031,identified,Pusher/tool connected to cylinder 2 rod
+stamp_a_rod,Component_032,identified,Vertical stamping cylinder A rod
+stamp_a_tool,Component_034,identified,Stamping tool connected to cylinder A
+stamp_b_rod,Component_033,identified,Vertical stamping cylinder B rod
+stamp_b_tool,Component_035,identified,Stamping tool connected to cylinder B
+magazine_workpieces,Component_036-Component_051,identified,16 workpieces at 25 x 25 x 10 mm
