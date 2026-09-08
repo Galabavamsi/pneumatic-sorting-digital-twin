@@ -57,6 +57,16 @@ feeder, vertical stamp, vacuum slide and lift, and a 0°/-90° rotary bin select
 It includes continuous and stepped automatic modes, safe homing, logical PLC I/O,
 production counts, faults, and a live engineering dashboard.
 
+- Verified recipe: **feed 50 mm → retract → stamp → extend vacuum → grip → retract → color route → release → home**
+- Default routing: **blue → Bin 1 / 0°**, **orange → Bin 2 / -90°**
+- Collision-driven feeder and independently simulated rigid-body workpieces
+- Gravity-advanced 16-piece magazine with one-pitch settling and feed interlocks
+- Mesh-calibrated vacuum contact, 50 mm slide travel, and reliable grip/release physics
+- The vacuum lift remains at its initialized 5 mm approach height during automatic cycles; `Q` / `A` are manual commissioning controls
+- Continuous batch, single-step, pause/resume, safe-stop, reset, and manual operation
+- Controller-neutral logical inputs/outputs with physical PLC addresses left `TBD`
+- Screen-space engineering dashboard with persistent **F1 ENGINEERING** launcher, live state, route, counts, cycle time, faults, and controls
+
 - Scene: `Assets/Scenes/Kit3Viewer.unity`
 - Validation: [Kit 3 acceptance checklist](Documentation/KIT3_VALIDATION.md)
 
@@ -93,7 +103,7 @@ git lfs pull
 3. Open it with Unity `6000.6.0f1`.
 4. Open the matching viewer scene in `Assets/Scenes`: `Kit1Viewer`, `Kit2Viewer`, or `Kit3Viewer`.
 5. Wait for Unity to finish importing and compiling.
-6. Select the matching **Tools → Kit 1/Kit 2/Kit 3 Digital Twin → Validate Project** command.
+6. Select the matching validation command under **Tools → Kit 1/Kit 2/Kit 3 Digital Twin**.
 7. Enter Play mode.
 
 For a readable editor preview, use `1280 × 720`, or keep QHD at its fitted Game-view scale. The Unity Game-view **Scale** slider magnifies and crops the whole render; it is not the machine camera zoom.
@@ -101,12 +111,12 @@ For a readable editor preview, use `1280 × 720`, or keep QHD at its fitted Game
 ## Run a simulation
 
 1. Press `F1` to open the engineering dashboard.
-2. Confirm **UTILITIES** shows 24 VDC, sufficient pressure, and `READY`.
+2. For Kits 1–2, confirm **UTILITIES** shows 24 VDC, sufficient pressure, and `READY`.
 3. Press `S` to begin the selected kit's automatic batch.
 4. Watch the sequence, I/O, production, and diagnostics update live.
 5. Press `X` for a safe stop or `M` for a master reset.
 
-Magazine contents are initialized at the beginning of an automatic run. Blue workpieces represent metal; orange workpieces represent plastic.
+Magazine contents are initialized at the beginning of an automatic run. Kits 1–2 use blue metal and orange plastic workpieces; Kit 3 sorts by blue/orange color classification.
 
 ![Workpiece and lift mechanism](Documentation/Images/workpiece-lift.png)
 
@@ -187,6 +197,18 @@ Kit 2 provides a focused commissioning dashboard:
 | I/O | Live logical inputs and actuator output commands |
 | Utilities | Power, pressure, E-stop, air leak, actuator faults, and sensor faults |
 | Diagnostics | Interlock health, sequence faults, timeout status, and PLC integration boundary |
+
+Kit 3 provides a screen-space production and commissioning dashboard:
+
+| Area | Purpose |
+|---|---|
+| Process | Automatic/manual mode, active state, and selected color route |
+| Production | Completed total, blue/Bin 1 count, orange/Bin 2 count, and remaining magazine quantity |
+| Mechanisms | Live feeder, stamp, vacuum, slide, lift, and rotary positions |
+| Diagnostics | Cycle time, fault count, and latest fault text |
+| Controls | Start batch, step, pause, safe stop, reset, and close |
+
+When closed, the Kit 3 dashboard leaves a clickable **F1 ENGINEERING** launcher at the top-right of the Game view.
 
 Historian CSV files are written to Unity's persistent application-data directory. On Windows with the default project settings:
 
