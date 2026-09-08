@@ -54,7 +54,7 @@ namespace Kit1DigitalTwin.Hmi
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (FindAnyObjectByType<ProductionMonitor>() == null)
+            if (KitSceneContext.IsKit1Scene && FindAnyObjectByType<ProductionMonitor>() == null)
             {
                 new GameObject("Production Monitor").AddComponent<ProductionMonitor>();
             }

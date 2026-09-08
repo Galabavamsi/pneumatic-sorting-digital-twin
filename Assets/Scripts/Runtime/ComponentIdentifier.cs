@@ -25,7 +25,7 @@ namespace Kit1DigitalTwin
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (FindFirstObjectByType<ComponentIdentifier>() != null)
+            if (!KitSceneContext.HasViewerKit || FindFirstObjectByType<ComponentIdentifier>() != null)
             {
                 return;
             }
@@ -37,7 +37,7 @@ namespace Kit1DigitalTwin
         {
             highlightBlock = new MaterialPropertyBlock();
 
-            Kit1ComponentRegistry registry = FindFirstObjectByType<Kit1ComponentRegistry>();
+            KitComponentRegistry registry = FindFirstObjectByType<KitComponentRegistry>();
             if (registry == null)
             {
                 enabled = false;
@@ -147,7 +147,9 @@ namespace Kit1DigitalTwin
             selectedIndex = index;
             selected = components[index];
             selected.SetPropertyBlock(highlightBlock);
-            Debug.Log($"KIT 1 SELECTED COMPONENT: {selected.name}", selected.gameObject);
+            KitComponentRegistry registry = FindFirstObjectByType<KitComponentRegistry>();
+            string kitId = registry != null ? registry.KitId.ToUpperInvariant() : "KIT";
+            Debug.Log($"{kitId} SELECTED COMPONENT: {selected.name}", selected.gameObject);
 
             if (isolated)
             {

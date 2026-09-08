@@ -83,7 +83,7 @@ namespace Kit1DigitalTwin.Hmi
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (FindFirstObjectByType<Kit1HmiAdapter>() == null)
+            if (KitSceneContext.IsKit1Scene && FindFirstObjectByType<Kit1HmiAdapter>() == null)
             {
                 new GameObject("Kit 1 HMI Adapter").AddComponent<Kit1HmiAdapter>();
             }

@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20prototype-19a974)](#project-status)
 
-An open-source Unity digital twin of an electropneumatic sorting station. The project turns segmented CAD geometry into an interactive simulation with pneumatic motion, mixed-material workpieces, PLC-style I/O, engineering HMI, fault injection, production monitoring, and telemetry replay.
+An open-source Unity digital-twin workspace for modular electropneumatic automation kits. Kit 1 provides a complete sorting simulation; Kit 2 now provides a segmented stamping-module viewer ready for mechanism mapping and simulation.
 
 The current release runs completely offline. No PLC or XR headset is required.
 
@@ -24,6 +24,7 @@ The current release runs completely offline. No PLC or XR headset is required.
 - E-stop, pressure loss, air leak, stuck actuator, and sensor-failure injection
 - 10 Hz historian, CSV export, and local actuator/telemetry replay
 - Orbit, pan, zoom, and component identification tools
+- Dedicated Kit 2 stamping-module scene with 66 selectable CAD components
 
 ![Engineering I/O monitor](Documentation/Images/engineering-io-monitor.png)
 
@@ -48,7 +49,7 @@ git lfs pull
 1. Open Unity Hub and select **Add → Add project from disk**.
 2. Choose the cloned repository folder.
 3. Open it with Unity `6000.6.0f1`.
-4. Open `Assets/Scenes/Kit1Viewer.unity` if it is not already open.
+4. Open `Assets/Scenes/Kit1Viewer.unity` for the sorting simulation or `Assets/Scenes/Kit2Viewer.unity` for Kit 2 component inspection.
 5. Wait for Unity to finish importing and compiling.
 6. Select **Tools → Kit 1 Digital Twin → Validate Project**.
 7. Enter Play mode.
@@ -132,7 +133,11 @@ See [Architecture](Documentation/ARCHITECTURE.md) for component responsibilities
 
 ## Project status
 
-Kit 1 is an offline simulation and PLC-ready software prototype. It does **not** yet connect to physical hardware. Logical tag names intentionally remain independent of controller addresses until the PLC model, program, network, and wiring map are confirmed.
+Kit 1 is an offline simulation and PLC-ready software prototype. Kit 2 has completed CAD segmentation and Unity viewer integration; actuator, sensor, and sequence mapping is the next milestone.
+
+![Kit 2 segmented stamping module](Documentation/Images/kit2-stamping-components.png)
+
+The project does **not** yet connect to physical hardware. Logical tag names intentionally remain independent of controller addresses until the PLC model, program, network, and wiring map are confirmed.
 
 See the [validation record](Documentation/VALIDATION.md) and [roadmap](Documentation/ROADMAP.md).
 

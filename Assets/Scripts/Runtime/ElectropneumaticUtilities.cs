@@ -45,7 +45,7 @@ namespace Kit1DigitalTwin
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (FindAnyObjectByType<ElectropneumaticUtilities>() == null)
+            if (KitSceneContext.IsKit1Scene && FindAnyObjectByType<ElectropneumaticUtilities>() == null)
             {
                 new GameObject("Electropneumatic Utilities").AddComponent<ElectropneumaticUtilities>();
             }

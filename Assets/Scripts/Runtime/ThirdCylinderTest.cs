@@ -31,7 +31,7 @@ namespace Kit1DigitalTwin
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (FindFirstObjectByType<ThirdCylinderTest>() == null)
+            if (KitSceneContext.IsKit1Scene && FindFirstObjectByType<ThirdCylinderTest>() == null)
             {
                 new GameObject("Third Cylinder Motion Test").AddComponent<ThirdCylinderTest>();
             }

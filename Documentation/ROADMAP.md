@@ -13,6 +13,9 @@
 - [x] Add electropneumatic utilities and fault injection
 - [x] Add historian, CSV export, and local replay
 - [x] Add project validator and open-source packaging
+- [x] Segment Kit 2 into 66 named CAD components
+- [x] Add Kit 2 stamping-module prefab and viewer scene
+- [x] Make component inspection reusable across kit scenes
 
 ## Next
 
@@ -25,7 +28,9 @@
 
 ## Additional kits
 
-- [ ] Import and segment remaining CAD assemblies
+- [ ] Identify and label Kit 2 actuators, tooling, feeders, sensors, and workpieces
+- [ ] Calibrate Kit 2 actuator axes and stamping sequence
+- [ ] Import and segment Kits 3-5 CAD assemblies
 - [ ] Create a configuration/adapter package per kit
 - [ ] Map mechanisms, sensors, outputs, and sequences
 - [ ] Reuse the shared HMI, utilities, production, and historian layers

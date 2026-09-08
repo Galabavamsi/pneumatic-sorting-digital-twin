@@ -41,7 +41,7 @@ namespace Kit1DigitalTwin.Hmi
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (FindFirstObjectByType<Kit1EngineeringDashboard>() == null)
+            if (KitSceneContext.IsKit1Scene && FindFirstObjectByType<Kit1EngineeringDashboard>() == null)
             {
                 new GameObject("Kit 1 Engineering Dashboard").AddComponent<Kit1EngineeringDashboard>();
             }

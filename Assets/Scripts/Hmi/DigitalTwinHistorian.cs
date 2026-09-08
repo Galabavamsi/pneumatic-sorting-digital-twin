@@ -46,7 +46,7 @@ namespace Kit1DigitalTwin.Hmi
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (FindAnyObjectByType<DigitalTwinHistorian>() == null)
+            if (KitSceneContext.IsKit1Scene && FindAnyObjectByType<DigitalTwinHistorian>() == null)
             {
                 new GameObject("Digital Twin Historian").AddComponent<DigitalTwinHistorian>();
             }

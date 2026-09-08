@@ -27,6 +27,11 @@ namespace Kit1DigitalTwin
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
+            if (!KitSceneContext.IsKit1Scene)
+            {
+                return;
+            }
+
             Visible = false;
             lastToggleFrame = -1;
             if (FindFirstObjectByType<Kit1DebugOverlay>() == null)

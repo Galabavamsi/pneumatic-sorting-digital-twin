@@ -10,6 +10,10 @@
 
 ## Runtime layers
 
+### Scene and CAD inspection layer
+
+Each kit has its own scene and station root. `KitSceneContext` prevents Kit 1-specific control services from starting in another kit's scene. `KitComponentRegistry` and `ComponentIdentifier` provide shared component discovery, selection, focus, and isolation for segmented CAD assemblies.
+
 ### Mechanical layer
 
 `PneumaticCylinderTest`, `SecondCylinderTest`, `ThirdCylinderTest`, and `LiftCylinderTest` own calibrated axis motion. `MagazineFeedTest` transfers the active workpiece between the magazine, lift, ejector, and gravity simulation. `Kit1MagazineBatch` manages the remaining stack and randomized materials.

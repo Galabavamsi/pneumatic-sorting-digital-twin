@@ -45,6 +45,11 @@ namespace Kit1DigitalTwin
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
+            if (!KitSceneContext.IsKit1Scene)
+            {
+                return;
+            }
+
             IsRunning = false;
             if (FindFirstObjectByType<Kit1AutomaticSequence>() == null)
             {

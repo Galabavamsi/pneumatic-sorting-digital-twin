@@ -41,7 +41,7 @@ namespace Kit1DigitalTwin
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (FindFirstObjectByType<Kit1PlcIo>() == null)
+            if (KitSceneContext.IsKit1Scene && FindFirstObjectByType<Kit1PlcIo>() == null)
             {
                 new GameObject("Kit 1 PLC IO").AddComponent<Kit1PlcIo>();
             }

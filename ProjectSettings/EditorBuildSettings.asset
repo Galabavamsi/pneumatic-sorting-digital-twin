@@ -8,5 +8,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Kit1Viewer.unity
     guid: c6b6da2456e9a6246a81e42790e7b72d
+  - enabled: 1
+    path: Assets/Scenes/Kit2Viewer.unity
+    guid: fccd61111a052074a85b2e4e2204e073
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

@@ -50,7 +50,7 @@ namespace Kit1DigitalTwin
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (FindFirstObjectByType<MagazineFeedTest>() == null)
+            if (KitSceneContext.IsKit1Scene && FindFirstObjectByType<MagazineFeedTest>() == null)
             {
                 new GameObject("Magazine Feed Test").AddComponent<MagazineFeedTest>();
             }

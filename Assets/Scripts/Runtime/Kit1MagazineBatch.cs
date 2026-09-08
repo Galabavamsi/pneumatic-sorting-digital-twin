@@ -35,7 +35,7 @@ namespace Kit1DigitalTwin
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (FindFirstObjectByType<Kit1MagazineBatch>() == null)
+            if (KitSceneContext.IsKit1Scene && FindFirstObjectByType<Kit1MagazineBatch>() == null)
             {
                 new GameObject("Kit 1 Mixed Magazine").AddComponent<Kit1MagazineBatch>();
             }

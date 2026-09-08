@@ -43,7 +43,7 @@ namespace Kit1DigitalTwin
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (FindFirstObjectByType<Kit1SensorSimulation>() == null)
+            if (KitSceneContext.IsKit1Scene && FindFirstObjectByType<Kit1SensorSimulation>() == null)
             {
                 new GameObject("Kit 1 Sensor Simulation").AddComponent<Kit1SensorSimulation>();
             }

@@ -32,7 +32,7 @@ namespace Kit1DigitalTwin
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (FindFirstObjectByType<LiftCylinderTest>() == null)
+            if (KitSceneContext.IsKit1Scene && FindFirstObjectByType<LiftCylinderTest>() == null)
             {
                 new GameObject("Vertical Lift Motion Test").AddComponent<LiftCylinderTest>();
             }

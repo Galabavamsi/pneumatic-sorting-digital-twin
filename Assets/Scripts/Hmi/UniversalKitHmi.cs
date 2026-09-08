@@ -16,7 +16,7 @@ namespace Kit1DigitalTwin.Hmi
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (FindFirstObjectByType<UniversalKitHmi>() == null)
+            if (KitSceneContext.IsKit1Scene && FindFirstObjectByType<UniversalKitHmi>() == null)
             {
                 new GameObject("Universal Kit HMI").AddComponent<UniversalKitHmi>();
             }
