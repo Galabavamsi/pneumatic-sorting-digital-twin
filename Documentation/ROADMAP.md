@@ -16,6 +16,7 @@
 - [x] Segment Kit 2 into 66 named CAD components
 - [x] Add Kit 2 stamping-module prefab and viewer scene
 - [x] Make component inspection reusable across kit scenes
+- [x] Identify Kit 2 cylinder 1 rod and pusher
 
 ## Next
 
