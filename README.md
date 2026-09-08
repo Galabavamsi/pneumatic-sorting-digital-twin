@@ -8,25 +8,56 @@ An open-source Unity digital-twin workspace for modular electropneumatic automat
 
 The current release runs completely offline. No PLC or XR headset is required.
 
-![Kit 1 sorting station](Documentation/Images/kit1-sorting-station.png)
+## Included digital twins
 
-## What works
+| Module | Purpose | CAD components | Simulated axes | Workpiece process |
+|---|---|---:|---:|---|
+| **Kit 1** | Metal/plastic sorting | 63 | 4 | Feed → detect → lift → route → bin |
+| **Kit 2** | Material-dependent stamping | 66 | 4 | Feed → detect → stamp → eject → bin |
 
-- Segmented 63-component CAD assembly imported at engineering scale
-- Four calibrated pneumatic axes: feed, lower ejector, upper ejector, and vertical lift
-- Automatic mixed-material sorting sequence
-- Metal/plastic detection and routing
-- Magazine gravity feed and physical workpiece discharge into two bins
-- PLC-style logical digital inputs and outputs
-- Operator HMI and responsive engineering dashboard
-- Production counts, cycle timing, alarms, and timestamped events
-- 24 VDC and pneumatic supply simulation
-- E-stop, pressure loss, air leak, stuck actuator, and sensor-failure injection
+## Kit 1 — pneumatic sorting module
+
+![Kit 1 pneumatic sorting station running in Unity](Documentation/Images/kit1-sorting-station.png)
+
+Kit 1 sorts a randomized magazine of blue metal and orange plastic workpieces. The controller feeds one piece onto the lift, evaluates the simulated inductive/capacitive sensors, then selects the correct ejector and bin.
+
+- Four calibrated axes: feed cylinder, lower ejector, upper ejector, and vertical lift
+- Physical magazine feed, workpiece transfer, gravity, ramp, and bin collisions
+- Automatic mixed-material sequence with manual commissioning controls
+- Controller-neutral logical PLC inputs and outputs
+- Operator HMI plus seven-tab engineering dashboard
+- Production counts, cycle time, alarms, and timestamped events
 - 10 Hz historian, CSV export, and local actuator/telemetry replay
-- Orbit, pan, zoom, and component identification tools
-- Complete Kit 2 stamping workflow with two horizontal cylinders, two stamps, a 16-piece physical magazine, dual-bin routing, logical PLC I/O, utilities, faults, automatic/step/pause/safe-stop control, and an engineering dashboard
 
-![Engineering I/O monitor](Documentation/Images/engineering-io-monitor.png)
+- Scene: `Assets/Scenes/Kit1Viewer.unity`
+- Validation: [Kit 1 acceptance checklist](Documentation/VALIDATION.md)
+
+## Kit 2 — pneumatic stamping module
+
+![Kit 2 pneumatic stamping station running in Unity](Documentation/Images/kit2-stamping-runtime.png)
+
+Kit 2 models a two-station stamping process with a 16-piece vertical magazine. Each stored piece advances by the measured CAD pitch, becomes an independent rigid body when released, and follows FIFO behavior through the stamping platform and discharge ramps.
+
+- Two horizontal cylinders with separate 50 mm staging and 90 mm eject travel
+- Two independently controlled vertical stamp rod/tool pairs
+- Inductive and capacitive material detection
+- Default recipe: **metal → Stamp A → Bin 1**, **plastic → Stamp B → Bin 2**
+- Continuous, step, pause/resume, safe-stop, reset, and unrestricted manual commissioning modes
+- Logical PLC I/O, live sensor states, production counters, and engineering diagnostics
+- Accurate workpiece-to-workpiece, pusher, platform, ramp, gravity, and bin interaction
+
+- Scene: `Assets/Scenes/Kit2Viewer.unity`
+- Validation: [Kit 2 acceptance checklist](Documentation/KIT2_VALIDATION.md)
+
+## Shared simulation platform
+
+- 24 VDC control-power and regulated pneumatic-supply simulation
+- E-stop, low pressure, air leak, stuck actuator, and failed-sensor injection
+- PLC-neutral tags with physical controller addresses intentionally left `TBD`
+- Responsive engineering UI, orbit/pan/zoom camera, and component identification
+- Automated Unity project validators for both kits
+
+![Live logical I/O on the engineering dashboard](Documentation/Images/engineering-io-monitor.png)
 
 ## Quick start
 
@@ -56,19 +87,19 @@ git lfs pull
 
 For a readable editor preview, use `1280 × 720`, or keep QHD at its fitted Game-view scale. The Unity Game-view **Scale** slider magnifies and crops the whole render; it is not the machine camera zoom.
 
-## Run the simulation
+## Run a simulation
 
 1. Press `F1` to open the engineering dashboard.
 2. Confirm **UTILITIES** shows 24 VDC, sufficient pressure, and `READY`.
-3. Press `S` to begin automatic sorting.
-4. Watch the sequence, I/O, production, and actuator tabs update live.
+3. Press `S` to begin the selected kit's automatic batch.
+4. Watch the sequence, I/O, production, and diagnostics update live.
 5. Press `X` for a safe stop or `M` for a master reset.
 
-The magazine contents are randomized at the beginning of an automatic run. Blue workpieces represent metal; orange workpieces represent plastic.
+Magazine contents are initialized at the beginning of an automatic run. Blue workpieces represent metal; orange workpieces represent plastic.
 
 ![Workpiece and lift mechanism](Documentation/Images/workpiece-lift.png)
 
-## Controls
+## Shared controls
 
 | Action | Control |
 |---|---|
@@ -77,29 +108,41 @@ The magazine contents are randomized at the beginning of an automatic run. Blue 
 | Zoom camera | Mouse wheel |
 | Fast zoom | `Shift` + mouse wheel |
 | Engineering dashboard | `F1` |
-| Operator HMI | `F2` |
-| Expand/collapse operator HMI | `Tab` |
 | Start automatic batch | `S` |
-| Kit 2 step / advance | `N` |
-| Kit 2 pause / resume | `P` |
 | Safe stop | `X` |
 | Master reset | `M` |
+| Previous/next component | `[` / `]` or arrow keys |
+| Hide/focus selected component | `H` / `F` |
+| Clear component selection | `Esc` |
+
+### Kit 1 controls
+
+| Action | Control |
+|---|---|
+| Operator HMI | `F2` |
+| Expand/collapse operator HMI | `Tab` |
 | Select metal/plastic manually | `1` / `2` |
 | Feed cylinder extend/retract/toggle | `E` / `R` / `Space` |
 | Lower ejector extend/retract/toggle | `T` / `G` / `Y` |
 | Upper ejector extend/retract/toggle | `U` / `J` / `I` |
 | Lift up/down/toggle | `V` / `C` / `B` |
-| Kit 2 Cylinder 1 stage/home/eject | `E` / `R` / `Shift+E` |
-| Kit 2 Cylinder 2 stage/home/eject | `T` / `G` / `Shift+T` |
-| Kit 2 Stamp A down/up | `U` / `J` |
-| Kit 2 Stamp B down/up | `I` / `K` |
-| Previous/next component | `[` / `]` or arrow keys |
-| Hide/focus selected component | `H` / `F` |
-| Clear component selection | `Esc` |
 
-Manual actuator controls are intended for commissioning tests while the automatic sequence is stopped. In Kit 2, `N` advances step mode, `P` pauses/resumes, `E`/`R`/`Shift+E` control Cylinder 1, `T`/`G`/`Shift+T` control Cylinder 2, and `U`/`J` plus `I`/`K` control Stamps A and B.
+### Kit 2 controls
 
-## Engineering dashboard
+| Action | Control |
+|---|---|
+| Step mode / advance one transition | `N` |
+| Pause/resume automatic sequence | `P` |
+| Cylinder 1 stage/home/eject | `E` / `R` / `Shift+E` |
+| Cylinder 2 stage/home/eject | `T` / `G` / `Shift+T` |
+| Stamp A down/up | `U` / `J` |
+| Stamp B down/up | `I` / `K` |
+
+Manual actuator controls are available while the automatic sequence is stopped.
+
+## Engineering dashboards
+
+Kit 1 provides the full production and historian dashboard:
 
 | Tab | Purpose |
 |---|---|
@@ -110,6 +153,15 @@ Manual actuator controls are intended for commissioning tests while the automati
 | History | Record, scrub, replay, export, and clear telemetry sessions |
 | Actuators | Position, output command, and reed-switch state for every axis |
 | Diagnostics | Alarms, interlocks, runtime state, and engineering controls |
+
+Kit 2 provides a focused commissioning dashboard:
+
+| Tab | Purpose |
+|---|---|
+| Overview | Sequence, route, remaining pieces, production counts, and automatic controls |
+| I/O | Live logical inputs and actuator output commands |
+| Utilities | Power, pressure, E-stop, air leak, actuator faults, and sensor faults |
+| Diagnostics | Interlock health, sequence faults, timeout status, and PLC integration boundary |
 
 Historian CSV files are written to Unity's persistent application-data directory. On Windows with the default project settings:
 
@@ -139,9 +191,7 @@ See [Architecture](Documentation/ARCHITECTURE.md) for component responsibilities
 
 ## Project status
 
-Kit 1 and Kit 2 are offline simulations and PLC-ready software prototypes. Kit 2 includes calibrated motion, generalized workpiece physics, material detection, stamping recipes, dual-bin discharge, a controller-neutral tag layer, simulated utilities/faults, and commissioning diagnostics.
-
-![Kit 2 segmented stamping module](Documentation/Images/kit2-stamping-components.png)
+Kit 1 and Kit 2 are complete offline simulations and PLC-ready software prototypes. Both kit project validators and their play-mode acceptance checklists pass.
 
 The project does **not** yet connect to physical hardware. Logical tag names intentionally remain independent of controller addresses until the PLC model, program, network, and wiring map are confirmed.
 
