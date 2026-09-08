@@ -1,0 +1,22 @@
+role,component,status,notes
+vacuum_end_effector,Component_033,identified,Vacuum pickup at the transfer arm selected and visually confirmed in Kit3Viewer
+magazine_workpieces,Component_050-Component_065,calibrated,16 independent 25 x 25 x 10 mm rigidbodies; constrained gravity stack drops one 10 mm CAD pitch only after the pusher reaches home
+stamping_rod,Component_035,identified,Vertical moving rod for the stamping axis
+stamping_head,Component_044,calibrated,Stamping head attached to Component_035; 45 mm measured contact stroke
+secondary_cylinder_rod,Component_032,identified,Cylinder rod visually confirmed by the operator; process role to be finalized
+secondary_cylinder_head,Component_034,calibrated,Feed head attached to Component_032 with a kinematic collision proxy; safe 50 mm presentation only and interlocked while processing is occupied
+rotary_turntable,Component_048,identified,Rotating collar/turntable highlighted at the base of the vacuum transfer column
+rotary_vertical_column,Component_036,identified,Vertical guided column mounted above the rotary turntable
+rotary_output_coupling,Component_046,identified,Upper coupling between the vertical column and horizontal transfer assembly
+vacuum_transfer_slide,Component_040,identified,Horizontal guided transfer actuator isolated in Kit3Viewer
+vacuum_transfer_arm,Component_041,identified,Horizontal arm on the rotary pickup assembly
+vacuum_transfer_bracket,Component_014,identified,Carrier bracket linking the transfer actuator and vacuum pickup; rotates with the tower
+vacuum_slide_moving_group,Component_033;Component_040;Component_041,identified,50 mm linear slide group constrained to Component_040 CAD rail axis; Component_014 rotates with the carrier but does not translate
+vacuum_lift_moving_group,Component_014;Component_020;Component_022;Component_031;Component_033;Component_040;Component_041;Component_046;Component_069,calibrated,Mesh-calibrated contact plane; hard lower and startup height is 5 mm above contact and upper height is 20 mm; includes upper member 046 while sleeve 036 and rotary base remain fixed
+vacuum_transfer_end_plate,Component_031,identified,End plate attached to the horizontal transfer actuator
+vacuum_transfer_body,Component_069,identified,Outer body of the horizontal transfer actuator
+rotary_attached_group,Component_014;Component_031;Component_033;Component_036;Component_040;Component_041;Component_046;Component_048;Component_069,identified,Verified primary pickup group; pneumatic fittings are included in runtime rotation by CAD co-location
+feed_axis,TBD,pending,Identify magazine presentation cylinder rod and pusher
+vacuum_generator,TBD,pending,Identify vacuum generator body and pneumatic pickup connection
+bin_1,Component_027,identified,Vacuum home-angle destination; feeder does not directly eject into this bin
+bin_2,Component_028,identified,Destination bin highlighted in the supplied Kit3Viewer image

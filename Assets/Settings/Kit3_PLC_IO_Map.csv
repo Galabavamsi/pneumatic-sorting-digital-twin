@@ -1,0 +1,23 @@
+direction,logical_tag,physical_address,description
+DI,DI_MagazineReady,TBD,Settled workpiece available and feeder permitted to start
+DI,DI_MagazineEmpty,TBD,No unreleased workpieces remain
+DI,DI_PartAtStamp,TBD,Workpiece is present at the processing position
+DI,DI_PartBlue,TBD,Color sensor classifies the processing workpiece as blue
+DI,DI_PartOrange,TBD,Color sensor classifies the processing workpiece as orange
+DI,DI_FeedHome,TBD,50 mm feeder is fully retracted
+DI,DI_FeedExtended,TBD,50 mm feeder is at the presentation endpoint
+DI,DI_StampUp,TBD,Stamp cylinder is at its upper endpoint
+DI,DI_StampDown,TBD,Stamp cylinder is at its lower endpoint
+DI,DI_VacuumGrip,TBD,Vacuum pickup has captured a workpiece
+DI,DI_SlideHome,TBD,Vacuum slide is fully retracted
+DI,DI_SlideExtended,TBD,Vacuum slide is at the pickup endpoint
+DI,DI_LiftDown,TBD,Vacuum lift is at its 5 mm approach position
+DI,DI_LiftUp,TBD,Vacuum lift is at its 20 mm clearance position
+DI,DI_RotaryBin1,TBD,Rotary axis is at home and aligned with Bin 1
+DI,DI_RotaryBin2,TBD,Rotary axis is at -90 degrees and aligned with Bin 2
+DO,DO_FeedExtend,TBD,Extend feeder to the 50 mm presentation endpoint; false retracts
+DO,DO_StampDown,TBD,Lower the stamp; false raises it
+DO,DO_VacuumOn,TBD,Enable the vacuum generator
+DO,DO_SlideExtend,TBD,Extend vacuum slide to the workpiece; false retracts
+DO,DO_LiftUp,TBD,Raise vacuum pickup to clearance; false lowers to approach
+DO,DO_RouteBin2,TBD,Rotate to Bin 2; false commands Bin 1 home

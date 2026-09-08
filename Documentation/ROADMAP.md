@@ -27,6 +27,14 @@
 - [x] Add Kit 2 production counters and engineering dashboard
 - [x] Add Kit 2 project validator, PLC tag map, and acceptance checklist
 - [x] Validate continuous, paused, stepped, and safe-stop Kit 2 cycles
+- [x] Segment Kit 3 into 69 named CAD components
+- [x] Add the Kit 3 prefab, viewer scene, component manifest, and validator
+- [x] Define the Kit 3 stamping, vacuum-transfer, rotary sorting objective
+- [x] Identify and calibrate Kit 3 feed, stamp, vacuum, lift, rotary, workpiece, and bin groups
+- [x] Add Kit 3 rigid-body magazine, feeder collision, vacuum grip, and bin-release physics
+- [x] Implement the Kit 3 two-color automatic sequence and logical PLC I/O
+- [x] Add the Kit 3 live production and commissioning dashboard
+- [x] Validate continuous, paused, stepped, safe-stop, color routing, and dashboard operation for Kit 3
 
 ## Next
 
@@ -39,7 +47,7 @@
 
 ## Additional kits
 
-- [ ] Import and segment Kits 3-5 CAD assemblies
+- [ ] Import and segment Kits 4-5 CAD assemblies
 - [ ] Create a configuration/adapter package per kit
 - [ ] Map mechanisms, sensors, outputs, and sequences
 - [ ] Reuse the shared HMI, utilities, production, and historian layers

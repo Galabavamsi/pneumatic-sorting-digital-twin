@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20prototype-19a974)](#project-status)
 
-An open-source Unity digital-twin workspace for modular electropneumatic automation kits. Kit 1 provides a complete sorting simulation, and Kit 2 provides a complete offline stamping and material-routing simulation.
+An open-source Unity digital-twin workspace for modular electropneumatic automation kits. Kits 1–3 provide complete offline sorting, stamping, vacuum-transfer, and material-routing simulations.
 
 The current release runs completely offline. No PLC or XR headset is required.
 
@@ -14,6 +14,7 @@ The current release runs completely offline. No PLC or XR headset is required.
 |---|---|---:|---:|---|
 | **Kit 1** | Metal/plastic sorting | 63 | 4 | Feed → detect → lift → route → bin |
 | **Kit 2** | Material-dependent stamping | 66 | 4 | Feed → detect → stamp → eject → bin |
+| **Kit 3** | Color stamping and vacuum sorting | 69 | 4 | Feed → stamp → vacuum pick → rotate → bin |
 
 ## Kit 1 — pneumatic sorting module
 
@@ -49,13 +50,23 @@ Kit 2 models a two-station stamping process with a 16-piece vertical magazine. E
 - Scene: `Assets/Scenes/Kit2Viewer.unity`
 - Validation: [Kit 2 acceptance checklist](Documentation/KIT2_VALIDATION.md)
 
+## Kit 3 — vacuum rotary sorting module
+
+Kit 3 processes a 16-piece blue/orange magazine with a collision-driven 50 mm
+feeder, vertical stamp, vacuum slide and lift, and a 0°/-90° rotary bin selector.
+It includes continuous and stepped automatic modes, safe homing, logical PLC I/O,
+production counts, faults, and a live engineering dashboard.
+
+- Scene: `Assets/Scenes/Kit3Viewer.unity`
+- Validation: [Kit 3 acceptance checklist](Documentation/KIT3_VALIDATION.md)
+
 ## Shared simulation platform
 
 - 24 VDC control-power and regulated pneumatic-supply simulation
 - E-stop, low pressure, air leak, stuck actuator, and failed-sensor injection
 - PLC-neutral tags with physical controller addresses intentionally left `TBD`
 - Responsive engineering UI, orbit/pan/zoom camera, and component identification
-- Automated Unity project validators for both kits
+- Automated Unity project validators for all three kits
 
 ![Live logical I/O on the engineering dashboard](Documentation/Images/engineering-io-monitor.png)
 
@@ -80,9 +91,9 @@ git lfs pull
 1. Open Unity Hub and select **Add → Add project from disk**.
 2. Choose the cloned repository folder.
 3. Open it with Unity `6000.6.0f1`.
-4. Open `Assets/Scenes/Kit1Viewer.unity` for the sorting simulation or `Assets/Scenes/Kit2Viewer.unity` for the stamping simulation.
+4. Open the matching viewer scene in `Assets/Scenes`: `Kit1Viewer`, `Kit2Viewer`, or `Kit3Viewer`.
 5. Wait for Unity to finish importing and compiling.
-6. Select the matching **Tools → Kit 1/Kit 2 Digital Twin → Validate Project** command.
+6. Select the matching **Tools → Kit 1/Kit 2/Kit 3 Digital Twin → Validate Project** command.
 7. Enter Play mode.
 
 For a readable editor preview, use `1280 × 720`, or keep QHD at its fitted Game-view scale. The Unity Game-view **Scale** slider magnifies and crops the whole render; it is not the machine camera zoom.
@@ -140,6 +151,20 @@ Magazine contents are initialized at the beginning of an automatic run. Blue wor
 
 Manual actuator controls are available while the automatic sequence is stopped.
 
+### Kit 3 controls
+
+| Action | Control |
+|---|---|
+| Dashboard show/hide | `F1` |
+| Step mode / advance one transition | `N` |
+| Pause/resume / safe stop | `P` / `X` |
+| Feeder present/retract | `F` / `G` |
+| Stamp down/up | `U` / `J` |
+| Vacuum toggle | `V` |
+| Rotary Bin 1/Bin 2 | `L` / `O` |
+| Vacuum slide extend/retract | `E` / `R` |
+| Vacuum lift raise/lower | `Q` / `A` |
+
 ## Engineering dashboards
 
 Kit 1 provides the full production and historian dashboard:
@@ -191,11 +216,11 @@ See [Architecture](Documentation/ARCHITECTURE.md) for component responsibilities
 
 ## Project status
 
-Kit 1 and Kit 2 are complete offline simulations and PLC-ready software prototypes. Both kit project validators and their play-mode acceptance checklists pass.
+Kits 1, 2, and 3 are complete offline simulations and PLC-ready software prototypes. Their project validators and Play-mode acceptance checklists pass.
 
 The project does **not** yet connect to physical hardware. Logical tag names intentionally remain independent of controller addresses until the PLC model, program, network, and wiring map are confirmed.
 
-See the [Kit 1 validation record](Documentation/VALIDATION.md), [Kit 2 validation record](Documentation/KIT2_VALIDATION.md), and [roadmap](Documentation/ROADMAP.md).
+See the [Kit 1 validation record](Documentation/VALIDATION.md), [Kit 2 validation record](Documentation/KIT2_VALIDATION.md), [Kit 3 validation record](Documentation/KIT3_VALIDATION.md), and [roadmap](Documentation/ROADMAP.md).
 
 ## Safety
 
