@@ -18,9 +18,12 @@ namespace Kit1DigitalTwinEditor
         private const string PrefabPath = "Assets/Prefabs/Kit2_StampingStation.prefab";
         private const string MaterialPath = "Assets/Materials/Kit2Metal.mat";
         private const string SessionKey = "DigitalTwin.Kit2BootstrapAttempted";
+        private const string OpenRequestPath = "Library/OpenKit2Viewer.request";
 
         static Kit2ProjectBootstrap()
         {
+            EditorApplication.delayCall += OpenViewerIfRequested;
+
             if (Application.isBatchMode || SessionState.GetBool(SessionKey, false))
             {
                 return;
@@ -28,6 +31,22 @@ namespace Kit1DigitalTwinEditor
 
             SessionState.SetBool(SessionKey, true);
             EditorApplication.delayCall += BootstrapIfNeeded;
+        }
+
+        private static void OpenViewerIfRequested()
+        {
+            if (Application.isBatchMode || EditorApplication.isPlayingOrWillChangePlaymode ||
+                !File.Exists(OpenRequestPath))
+            {
+                return;
+            }
+
+            File.Delete(OpenRequestPath);
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) != null)
+            {
+                EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+                Debug.Log("KIT2_VIEWER_OPENED: switched to the Kit 2 stamping-module scene.");
+            }
         }
 
         [MenuItem("Digital Twin/Build Kit 2 Viewer")]
