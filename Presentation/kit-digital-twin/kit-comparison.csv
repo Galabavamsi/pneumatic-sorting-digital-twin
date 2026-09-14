@@ -1,0 +1,6 @@
+kit,module,cad_components,triangles,bounds_x_mm,bounds_y_mm,bounds_z_mm,validated_simulated_axes,simulated_batch_workpieces,simulation_scope
+Kit 1,Sorting,63,760480,268.0,266.5,150.0,4,16,Validated offline simulation
+Kit 2,Stamping,66,740031,397.8,428.0,283.0,4,16,Validated offline simulation
+Kit 3,Stamping and color sorting,69,1688481,491.6,295.4,297.5,4,16,Validated offline simulation
+Kit 4,Inspection,83,2947149,494.5,572.5,220.0,0,0,CAD assembly only in this presentation
+Kit 5,Assembly,92,2409332,496.5,561.2,250.0,0,0,CAD assembly only in this presentation

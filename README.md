@@ -16,6 +16,17 @@ The current release runs completely offline. No PLC or XR headset is required.
 | **Kit 2** | Material-dependent stamping | 66 | 4 | Feed → detect → stamp → eject → bin |
 | **Kit 3** | Color stamping and vacuum sorting | 69 | 4 | Feed → stamp → vacuum pick → rotate → bin |
 
+## Presentation package
+
+The repository includes a slide-ready [presentation context and asset index](Presentation/kit-digital-twin/PRESENTATION_CONTEXT.md) with:
+
+- colored assembled CAD renders for Kits 1–5;
+- 720p working-machine videos for the validated Kit 1–3 simulations;
+- CAD-complexity, assembly-envelope, and simulation-capability plots;
+- reusable CSV data, suggested slide structure, speaker notes, validation boundaries, and future work.
+
+Kits 4–5 are presented as CAD assemblies only; no completed simulation is claimed for them.
+
 ## Kit 1 — pneumatic sorting module
 
 ![Kit 1 pneumatic sorting station running in Unity](Documentation/Images/kit1-sorting-station.png)
