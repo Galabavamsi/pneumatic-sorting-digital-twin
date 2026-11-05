@@ -26,6 +26,9 @@
 *.opendb
 *.VC.db
 
+# Local bootstrap / tooling
+.tools/
+
 # OS files
 .DS_Store
 Thumbs.db
