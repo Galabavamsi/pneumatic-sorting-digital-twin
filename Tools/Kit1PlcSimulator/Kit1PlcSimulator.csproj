@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Soft PLC for Kit 1: runs a C# port of PLC/Kit1/Kit1_Sort.st against a simple
+    plant model and serves the same Modbus TCP map as the real Micro850.
+    LangVersion 9 matches Unity 6, so the shared Assets/ sources compile here
+    exactly as they do in the editor.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>Kit1PlcSimulator</RootNamespace>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Assets\Scripts\Runtime\PlcLink\Kit1ModbusMap.cs" Link="Shared\Kit1ModbusMap.cs" />
+    <Compile Include="..\..\Assets\Scripts\Runtime\PlcLink\ModbusTcpClient.cs" Link="Shared\ModbusTcpClient.cs" />
+  </ItemGroup>
+
+</Project>

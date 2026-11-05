@@ -1,0 +1,97 @@
+name,scope,data_type,initial_value,modbus_address,comment
+CFG_UseReeds,Global,BOOL,TRUE,,TRUE = wait for reed switches; FALSE = timed moves (CFG_TravelTime)
+CFG_UseMagSensor,Global,BOOL,TRUE,,TRUE = BPRS-620 fibre amp on DI-6; FALSE = infer empty when no part reaches IS/CS
+CFG_MetalToUpper,Global,BOOL,TRUE,,TRUE = metal -> 2A upper ejector / plastic -> 3A lower; FALSE swaps
+CFG_EStopFitted,Global,BOOL,TRUE,,FALSE only for bench tests with no E-stop patched (unsafe)
+CFG_EStopNC,Global,BOOL,TRUE,,TRUE = E-stop contact on DI-3 is NC (ON when healthy)
+CFG_TravelTime,Global,TIME,T#1500ms,,Timed-move mode: coil hold time that counts as end of stroke
+CFG_MoveTimeout,Global,TIME,T#3s,,Reed mode: fault if a move takes longer
+CFG_HomeTimeout,Global,TIME,T#6s,,Fault if homing takes longer
+CFG_DetectSettle,Global,TIME,T#300ms,,Wait after feed retract before reading IS-01/CS-01
+CFG_DetectWindow,Global,TIME,T#1500ms,,Give up detecting after this long
+CFG_EmptyDebounce,Global,TIME,T#2s,,Part-present must be OFF this long to call the magazine empty
+CFG_FeedDelay,Global,TIME,T#300ms,,Pause in WaitPart before feeding (lets the stack settle)
+IN_MagazinePartPresent,Global,BOOL,,000001,Logical input
+IN_MagazineEmpty,Global,BOOL,,000002,Logical input
+IN_PartOnLift,Global,BOOL,,000003,Logical input (IS-01 OR CS-01)
+IN_Inductive,Global,BOOL,,000004,IS-01 metal
+IN_Capacitive,Global,BOOL,,000005,CS-01 any part
+IN_LiftUp,Global,BOOL,,000006,4A platform up
+IN_LiftDown,Global,BOOL,,000007,4A platform down
+IN_FeedExtended,Global,BOOL,,000008,1A extended
+IN_FeedRetracted,Global,BOOL,,000009,1A retracted
+IN_LowerEjExtended,Global,BOOL,,000010,3A extended
+IN_LowerEjRetracted,Global,BOOL,,000011,3A retracted
+IN_UpperEjExtended,Global,BOOL,,000012,2A extended
+IN_UpperEjRetracted,Global,BOOL,,000013,2A retracted
+IN_EStopOk,Global,BOOL,,000014,TRUE = E-stop healthy
+IN_StartPB,Global,BOOL,,000015,Green PB
+IN_StopPB,Global,BOOL,,000016,Red PB
+OUT_FeedExtend,Global,BOOL,,000017,-> DO-0 -> SOL-01
+OUT_FeedRetract,Global,BOOL,,000018,-> DO-1 -> SOL-02
+OUT_LowerEjExtend,Global,BOOL,,000019,-> DO-4 -> SOL-05
+OUT_LowerEjRetract,Global,BOOL,,000020,-> DO-5 -> SOL-06
+OUT_UpperEjExtend,Global,BOOL,,000021,-> DO-2 -> SOL-03
+OUT_UpperEjRetract,Global,BOOL,,000022,-> DO-3 -> SOL-04
+OUT_LiftUp,Global,BOOL,,000023,-> DO-6 -> SOL-07
+OUT_LiftDown,Global,BOOL,,000024,-> DO-7 -> SOL-08
+ST_AutoRunning,Global,BOOL,,000025,Status
+ST_Faulted,Global,BOOL,,000026,Status
+ST_Homed,Global,BOOL,,000027,Status
+IN_ResetPB,Global,BOOL,,000028,Black PB
+IN_ContinuousMode,Global,BOOL,,000029,Selector switch
+HMI_Start,Global,BOOL,FALSE,000030,Writable command coil (cleared by PLC each scan)
+HMI_Stop,Global,BOOL,FALSE,000031,Writable command coil (cleared by PLC each scan)
+HMI_Reset,Global,BOOL,FALSE,000032,Writable command coil (cleared by PLC each scan)
+HR_Heartbeat,Global,INT,0,400001,+1 about every 100 ms
+HR_Step,Global,INT,0,400002,Sequence step (see Kit1_Sort.st header)
+HR_Material,Global,INT,0,400003,0 none / 1 metal / 2 plastic
+HR_PartsDone,Global,INT,0,400004,Parts sorted
+HR_MetalCount,Global,INT,0,400005,Metal parts sorted
+HR_PlasticCount,Global,INT,0,400006,Plastic parts sorted
+HR_FaultCode,Global,INT,0,400007,Fault code (see Kit1_Sort.st header)
+HR_LastCycleMs,Global,INT,0,400008,Last cycle time in ms
+HR_MapVersion,Global,INT,1,400009,Must be 1; Unity checks it
+HR_Reserved,Global,INT,0,400010,Spare
+rawEStop,Local,BOOL,,,
+rawMagPart,Local,BOOL,,,
+rawFeedRet,Local,BOOL,,,
+rawFeedExt,Local,BOOL,,,
+rawUpperRet,Local,BOOL,,,
+rawUpperExt,Local,BOOL,,,
+rawLowerRet,Local,BOOL,,,
+rawLowerExt,Local,BOOL,,,
+rawLiftDown,Local,BOOL,,,
+rawLiftUp,Local,BOOL,,,
+outEnable,Local,BOOL,FALSE,,
+liftHold,Local,BOOL,FALSE,,
+cmdFeedExt,Local,BOOL,FALSE,,
+cmdUpperExt,Local,BOOL,FALSE,,
+cmdLowerExt,Local,BOOL,FALSE,,
+cmdLiftUp,Local,BOOL,TRUE,,
+wantAuto,Local,BOOL,FALSE,,
+stopRequest,Local,BOOL,FALSE,,
+cycleActive,Local,BOOL,FALSE,,
+magEmptyLatched,Local,BOOL,FALSE,,
+routeUpper,Local,BOOL,FALSE,,
+detected,Local,BOOL,FALSE,,
+hbPulse,Local,BOOL,FALSE,,
+stepChanged,Local,BOOL,FALSE,,
+allRetracted,Local,BOOL,FALSE,,
+stepPrev,Local,INT,0,,
+cycleMs,Local,DINT,0,,
+tvFeedExt,Local,TON,,,Timed-move position timers
+tvFeedRet,Local,TON,,,
+tvUpperExt,Local,TON,,,
+tvUpperRet,Local,TON,,,
+tvLowerExt,Local,TON,,,
+tvLowerRet,Local,TON,,,
+tvLiftUp,Local,TON,,,
+tvLiftDown,Local,TON,,,
+tEmpty,Local,TON,,,Magazine-empty debounce
+tHb,Local,TON,,,Heartbeat
+tStep,Local,TON,,,Time in current step
+tCycle,Local,TON,,,Cycle time
+rtStart,Local,R_TRIG,,,
+rtStop,Local,R_TRIG,,,
+rtReset,Local,R_TRIG,,,

@@ -253,6 +253,15 @@ Kits 1, 2, and 3 are complete offline simulations and PLC-ready software prototy
 
 The project does **not** yet connect to physical hardware. Logical tag names intentionally remain independent of controller addresses until the PLC model, program, network, and wiring map are confirmed.
 
+### Kit 1 hardware link (in bring-up)
+
+The physical trainer is a Gravitaz MATK-R5M with an Allen-Bradley Micro850. Kit 1 bring-up material:
+
+- [`PLC/Kit1`](PLC/Kit1/README.md): Micro850 Structured Text sorting program, variable list, patch-panel allocation, and Modbus TCP map.
+- `Assets/Scripts/Runtime/PlcLink`: read-only Modbus TCP live link. Press **F8** in `Kit1Viewer` to make the twin mirror the PLC; configure the address in `Assets/StreamingAssets/Kit1PlcLink.json` or with `-plcHost <ip>`.
+- `Tools/Kit1PlcSimulator`: soft PLC running a C# port of the program against a simulated Kit 1. It provides `selftest`, `linktest` and `serve --demo` modes for rehearsing without the rig.
+- [Kit 1 bring-up checklist](Documentation/KIT1_BRINGUP.md) and [hardware integration notes](Documentation/HARDWARE_INTEGRATION.md).
+
 See the [Kit 1 validation record](Documentation/VALIDATION.md), [Kit 2 validation record](Documentation/KIT2_VALIDATION.md), [Kit 3 validation record](Documentation/KIT3_VALIDATION.md), and [roadmap](Documentation/ROADMAP.md).
 
 ## Safety

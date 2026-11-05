@@ -1,3 +1,4 @@
+using Kit1DigitalTwin.PlcLink;
 using UnityEngine;
 
 namespace Kit1DigitalTwin
@@ -5,6 +6,7 @@ namespace Kit1DigitalTwin
     public sealed class Kit1PlcIo : MonoBehaviour
     {
         private Kit1SensorSimulation sensors;
+        private Kit1PlcLink plcLink;
         private PneumaticCylinderTest feedCylinder;
         private SecondCylinderTest lowerEjector;
         private ThirdCylinderTest upperEjector;
@@ -38,6 +40,10 @@ namespace Kit1DigitalTwin
         public bool DO_LiftUp { get; private set; } = true;
         public bool OutputControlEnabled { get; private set; }
 
+        // Live mode: the Micro850 is master and these tags mirror the real machine.
+        public bool LiveMode => Kit1PlcLink.LinkRequested;
+        public Kit1PlcSnapshot LiveSnapshot { get; private set; }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
@@ -70,6 +76,22 @@ namespace Kit1DigitalTwin
 
         private void Update()
         {
+            if (LiveMode)
+            {
+                plcLink ??= Kit1PlcLink.Instance;
+                Kit1PlcSnapshot snapshot = plcLink != null ? plcLink.LatestFresh : null;
+                LiveSnapshot = snapshot;
+                if (snapshot != null)
+                {
+                    ApplyLiveSnapshot(snapshot);
+                    ApplyOutputsToActuators();
+                }
+
+                // Stale or disconnected: hold the last pose rather than guess.
+                return;
+            }
+
+            LiveSnapshot = null;
             SampleInputs();
             if (utilities != null &&
                 (!utilities.ControlPowerAvailable || utilities.EmergencyStopActive))
@@ -85,6 +107,11 @@ namespace Kit1DigitalTwin
 
         public void EnableOutputControl(bool enable)
         {
+            if (LiveMode)
+            {
+                return;
+            }
+
             OutputControlEnabled = enable;
         }
 
@@ -118,6 +145,11 @@ namespace Kit1DigitalTwin
 
         public void ForceSafeHome()
         {
+            if (LiveMode)
+            {
+                return;   // the real PLC owns the outputs
+            }
+
             SetSafeHomeOutputs();
             if (feedCylinder != null && lowerEjector != null && upperEjector != null && lift != null)
             {
@@ -161,6 +193,50 @@ namespace Kit1DigitalTwin
                 case SimulatedSensorFault.LiftUpper: DI_LiftUp = false; break;
                 case SimulatedSensorFault.LiftLower: DI_LiftDown = false; break;
             }
+        }
+
+        // Real inputs straight from the PLC. Solenoid pairs map onto the twin's
+        // single extend/retract command; with neither coil on, a 5/2 bistable
+        // valve holds, so the twin keeps its previous command.
+        // Twin numbering: Cylinder 2 = LOWER ejector (rig 3A), Cylinder 3 = UPPER
+        // ejector (rig 2A). The Modbus map uses the functional names.
+        private void ApplyLiveSnapshot(Kit1PlcSnapshot s)
+        {
+            DI_MagazinePartPresent = s.MagazinePartPresent;
+            DI_MagazineEmpty = s.MagazineEmpty;
+            DI_PartOnLift = s.PartOnLift;
+            DI_MetalDetected = s.MetalDetected;
+            DI_PlasticDetected = s.PlasticDetected;
+            DI_LiftUp = s.LiftUp;
+            DI_LiftDown = s.LiftDown;
+            DI_Cylinder1Extended = s.FeedExtended;
+            DI_Cylinder1Retracted = s.FeedRetracted;
+            DI_Cylinder2Extended = s.LowerEjectorExtended;
+            DI_Cylinder2Retracted = s.LowerEjectorRetracted;
+            DI_Cylinder3Extended = s.UpperEjectorExtended;
+            DI_Cylinder3Retracted = s.UpperEjectorRetracted;
+            DI_WorkpieceReleased = sensors != null && sensors.WorkpieceReleased;
+
+            DO_Cylinder1Extend = Resolve(s.SolFeedExtend, s.SolFeedRetract, DO_Cylinder1Extend);
+            DO_Cylinder2Extend = Resolve(s.SolLowerEjectorExtend, s.SolLowerEjectorRetract, DO_Cylinder2Extend);
+            DO_Cylinder3Extend = Resolve(s.SolUpperEjectorExtend, s.SolUpperEjectorRetract, DO_Cylinder3Extend);
+            DO_LiftUp = Resolve(s.SolLiftUp, s.SolLiftDown, DO_LiftUp);
+            OutputControlEnabled = true;
+        }
+
+        private static bool Resolve(bool coilA, bool coilB, bool previous)
+        {
+            if (coilA && !coilB)
+            {
+                return true;
+            }
+
+            if (coilB && !coilA)
+            {
+                return false;
+            }
+
+            return previous;
         }
 
         private void ApplyOutputsToActuators()
