@@ -129,7 +129,8 @@ IF NOT IN_EStopOk AND HR_Step <> 90 THEN
     HR_Step := 90;
 END_IF;
 
-IF rtStop.Q AND ST_AutoRunning THEN
+(* Stop also counts during the homing that follows Start (wantAuto). *)
+IF rtStop.Q AND (ST_AutoRunning OR wantAuto) THEN
     stopRequest := TRUE;
 END_IF;
 
@@ -170,10 +171,12 @@ CASE HR_Step OF
         IF allRetracted AND IN_LiftUp THEN
             liftHold := FALSE;
             HR_Material := 0;
-            IF wantAuto THEN
+            IF wantAuto AND NOT stopRequest THEN
                 ST_AutoRunning := TRUE;
                 HR_Step := 2;
             ELSE
+                wantAuto := FALSE;
+                stopRequest := FALSE;
                 HR_Step := 0;
             END_IF;
         ELSIF tStep.ET >= CFG_HomeTimeout THEN
@@ -184,9 +187,15 @@ CASE HR_Step OF
     2: (* WaitPart *)
         IF stopRequest THEN
             HR_Step := 13;
+        ELSIF IN_PartOnLift AND allRetracted AND IN_LiftUp
+              AND tStep.ET >= CFG_FeedDelay THEN
+            (* A part is already on the platform (e.g. left by an E-stop):
+               sort it before feeding another one onto it. *)
+            cycleActive := TRUE;
+            HR_Step := 5;
         ELSIF IN_MagazineEmpty THEN
             HR_Step := 13;   (* batch complete *)
-        ELSIF IN_MagazinePartPresent AND allRetracted AND IN_LiftUp
+        ELSIF IN_MagazinePartPresent AND NOT IN_PartOnLift AND allRetracted AND IN_LiftUp
               AND tStep.ET >= CFG_FeedDelay THEN
             cycleActive := TRUE;
             HR_Step := 3;

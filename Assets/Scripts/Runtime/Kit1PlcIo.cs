@@ -7,6 +7,7 @@ namespace Kit1DigitalTwin
     {
         private Kit1SensorSimulation sensors;
         private Kit1PlcLink plcLink;
+        private bool wasLive;
         private PneumaticCylinderTest feedCylinder;
         private SecondCylinderTest lowerEjector;
         private ThirdCylinderTest upperEjector;
@@ -78,6 +79,7 @@ namespace Kit1DigitalTwin
         {
             if (LiveMode)
             {
+                wasLive = true;
                 plcLink ??= Kit1PlcLink.Instance;
                 Kit1PlcSnapshot snapshot = plcLink != null ? plcLink.LatestFresh : null;
                 LiveSnapshot = snapshot;
@@ -86,12 +88,25 @@ namespace Kit1DigitalTwin
                     ApplyLiveSnapshot(snapshot);
                     ApplyOutputsToActuators();
                 }
+                else
+                {
+                    // Stale or disconnected: freeze where we are rather than finish a
+                    // stroke the machine may not be making. Fresh data resumes motion.
+                    HoldActuators();
+                }
 
-                // Stale or disconnected: hold the last pose rather than guess.
                 return;
             }
 
-            LiveSnapshot = null;
+            if (wasLive)
+            {
+                // Link switched off: release the PLC's last outputs so the offline
+                // simulation and manual controls own the actuators again.
+                wasLive = false;
+                LiveSnapshot = null;
+                OutputControlEnabled = false;
+            }
+
             SampleInputs();
             if (utilities != null &&
                 (!utilities.ControlPowerAvailable || utilities.EmergencyStopActive))
@@ -222,6 +237,14 @@ namespace Kit1DigitalTwin
             DO_Cylinder3Extend = Resolve(s.SolUpperEjectorExtend, s.SolUpperEjectorRetract, DO_Cylinder3Extend);
             DO_LiftUp = Resolve(s.SolLiftUp, s.SolLiftDown, DO_LiftUp);
             OutputControlEnabled = true;
+        }
+
+        private void HoldActuators()
+        {
+            feedCylinder?.CommandHold();
+            lowerEjector?.CommandHold();
+            upperEjector?.CommandHold();
+            lift?.CommandHold();
         }
 
         private static bool Resolve(bool coilA, bool coilB, bool previous)

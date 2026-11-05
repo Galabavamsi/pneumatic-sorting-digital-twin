@@ -209,7 +209,7 @@ namespace Kit1PlcSimulator
                 HR_Step = 90;
             }
 
-            if (rtStop.Q && ST_AutoRunning)
+            if (rtStop.Q && (ST_AutoRunning || wantAuto))
             {
                 stopRequest = true;
             }
@@ -255,13 +255,15 @@ namespace Kit1PlcSimulator
                     {
                         liftHold = false;
                         HR_Material = 0;
-                        if (wantAuto)
+                        if (wantAuto && !stopRequest)
                         {
                             ST_AutoRunning = true;
                             HR_Step = 2;
                         }
                         else
                         {
+                            wantAuto = false;
+                            stopRequest = false;
                             HR_Step = 0;
                         }
                     }
@@ -278,11 +280,17 @@ namespace Kit1PlcSimulator
                     {
                         HR_Step = 13;
                     }
+                    else if (IN_PartOnLift && allRetracted && IN_LiftUp && tStep.ET >= CFG_FeedDelay)
+                    {
+                        // A part is already on the platform: sort it before feeding another.
+                        cycleActive = true;
+                        HR_Step = 5;
+                    }
                     else if (IN_MagazineEmpty)
                     {
                         HR_Step = 13;
                     }
-                    else if (IN_MagazinePartPresent && allRetracted && IN_LiftUp &&
+                    else if (IN_MagazinePartPresent && !IN_PartOnLift && allRetracted && IN_LiftUp &&
                              tStep.ET >= CFG_FeedDelay)
                     {
                         cycleActive = true;

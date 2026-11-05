@@ -147,6 +147,21 @@ namespace Kit1DigitalTwin.Hmi
             RecordEvent(message, ProductionEventSeverity.Alarm);
         }
 
+        // PLC live link: the controller owns the production figures. They are
+        // imported as totals, not rebuilt from locally timed cycles, so connecting
+        // late or reconnecting after a gap still shows the true counts.
+        public void ImportExternalTotals(
+            int completed, int metal, int plastic, float lastCycleSeconds, float averageCycleSeconds)
+        {
+            CompletedCycles = Mathf.Max(0, completed);
+            MetalCount = Mathf.Max(0, metal);
+            PlasticCount = Mathf.Max(0, plastic);
+            LastCycleSeconds = Mathf.Max(0f, lastCycleSeconds);
+            accumulatedCycleSeconds = Mathf.Max(0f, averageCycleSeconds) * CompletedCycles;
+            cycleActive = false;
+            activeMaterial = string.Empty;
+        }
+
         public void ResetCounters()
         {
             CompletedCycles = 0;

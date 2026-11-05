@@ -58,6 +58,13 @@ namespace Kit1DigitalTwin
 
         public float GetMotionSpeedFactor(SimulatedActuatorFault actuator)
         {
+            if (PlcLink.Kit1PlcLink.LinkRequested)
+            {
+                // Live: the twin follows the real machine. Simulated power, pressure,
+                // E-stop and stuck-actuator faults belong to the offline model only.
+                return 1f;
+            }
+
             if (!ControlPowerAvailable || EmergencyStopActive || !PressureAvailable || ActuatorFault == actuator)
             {
                 return 0f;

@@ -25,10 +25,16 @@ Home = feed (1A) retracted, both ejectors (2A, 3A) retracted, lift (4A) up.
    (`CFG_MetalToUpper := FALSE` swaps the routes.)
 5. Count, then repeat until the magazine is empty (selector ON) or stop after one part (selector OFF).
 
-Stop (red PB) finishes the current part and homes. Every move has a timeout that
-raises a fault; all coils drop (the 5/2 bistable valves hold position). E-stop
+Stop (red PB) finishes the current part and homes. Stop pressed during the homing
+that follows Start cancels the run before anything is fed. Every move has a timeout
+that raises a fault; all coils drop (the 5/2 bistable valves hold position). E-stop
 faults immediately. Reset (black PB) clears a fault when the E-stop is released and
 re-homes; in Idle it also zeroes the counters.
+
+If a part is still on the lift platform when the next cycle starts (for example after
+an E-stop mid-sort), the PLC sorts that part first and never feeds onto an occupied
+platform. A part left **half-fed** in the feed channel is not detected: clear it by
+hand before pressing Reset.
 
 Fault codes (register 400007): 1 E-stop, 2/3 feed extend/retract timeout, 4 part fed
 but not seen by IS/CS, 5 upper ejector timeout, 6 lift down timeout, 7 lower ejector

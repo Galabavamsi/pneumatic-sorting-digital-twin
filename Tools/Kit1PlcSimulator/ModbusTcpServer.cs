@@ -12,6 +12,11 @@ namespace Kit1PlcSimulator
     // coil (only for coils marked writable, i.e. the HMI command coils).
     public sealed class ModbusTcpServer : IDisposable
     {
+        // A client that sends nothing for this long is dropped, and at most
+        // MaxClients are served at once, so idle or stuck sockets cannot pile up.
+        private const int IdleTimeoutMs = 30000;
+        private const int MaxClients = 8;
+
         private readonly object sync;
         private readonly bool[] coils;
         private readonly ushort[] registers;
@@ -63,6 +68,12 @@ namespace Kit1PlcSimulator
 
                 lock (clients)
                 {
+                    if (clients.Count >= MaxClients)
+                    {
+                        client.Close();
+                        continue;
+                    }
+
                     clients.Add(client);
                 }
 
@@ -80,6 +91,8 @@ namespace Kit1PlcSimulator
             try
             {
                 client.NoDelay = true;
+                client.ReceiveTimeout = IdleTimeoutMs;   // Read throws IOException when idle
+                client.SendTimeout = IdleTimeoutMs;
                 NetworkStream stream = client.GetStream();
                 byte[] header = new byte[7];
                 while (running)

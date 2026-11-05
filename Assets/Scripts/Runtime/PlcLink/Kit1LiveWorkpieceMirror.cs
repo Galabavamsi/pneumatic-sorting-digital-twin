@@ -31,6 +31,9 @@ namespace Kit1DigitalTwin.PlcLink
         private bool lastEStopOk = true;
         private int lastTwinRoute;
         private bool wasRequested;
+        private int lastMetalCount;
+        private long observedCycleMsSum;
+        private int observedCycles;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
@@ -63,6 +66,13 @@ namespace Kit1DigitalTwin.PlcLink
 
             wasRequested = Kit1PlcLink.LinkRequested;
 
+            if (live != wasLive && (live || Kit1PlcLink.LinkRequested))
+            {
+                Debug.Log(live
+                    ? "Kit 1 twin mirroring the PLC (fresh data)."
+                    : "Kit 1 twin frozen: no fresh PLC data (link stale or disconnected).");
+            }
+
             if (live != wasLive)
             {
                 productionMonitor?.RecordEvent(
@@ -72,6 +82,7 @@ namespace Kit1DigitalTwin.PlcLink
                 if (live)
                 {
                     lastPartsCompleted = snapshot.PartsCompleted;
+                    lastMetalCount = snapshot.MetalCount;
                     lastMaterial = Kit1PlcMaterial.None;
                     lastFault = snapshot.FaultCode;
                     lastEStopOk = snapshot.EStopOk;
@@ -144,8 +155,9 @@ namespace Kit1DigitalTwin.PlcLink
                     ? Kit1SensorSimulation.WorkpieceMaterial.Metal
                     : Kit1SensorSimulation.WorkpieceMaterial.Plastic;
                 sensors.SetAutomaticMaterial(material);
-                productionMonitor?.BeginPart(material.ToString(), magazine != null ? magazine.RemainingCount : 0);
-                productionMonitor?.RecordDetection("per PLC recipe (real IS-01 / CS-01)");
+                productionMonitor?.RecordEvent(
+                    $"{material.ToString().ToUpperInvariant()} detected by the real IS-01 / CS-01.",
+                    ProductionEventSeverity.Info);
             }
 
             lastMaterial = snapshot.Material;
@@ -188,20 +200,48 @@ namespace Kit1DigitalTwin.PlcLink
                 return;
             }
 
-            if (snapshot.PartsCompleted > lastPartsCompleted && lastPartsCompleted >= 0)
+            // The PLC owns the figures: log what happened, then import its totals and
+            // its own cycle time (feed to ejection) instead of counting locally.
+            if (snapshot.PartsCompleted < lastPartsCompleted)
             {
-                productionMonitor.CompletePart();
+                observedCycleMsSum = 0;
+                observedCycles = 0;
+                productionMonitor.RecordEvent("PLC production counters were reset.", ProductionEventSeverity.Info);
+            }
+            else if (snapshot.PartsCompleted > lastPartsCompleted && lastPartsCompleted >= 0)
+            {
+                bool metal = snapshot.MetalCount > lastMetalCount;
+                observedCycleMsSum += snapshot.LastCycleTimeMs;
+                observedCycles++;
+                productionMonitor.RecordEvent(
+                    $"Part {snapshot.PartsCompleted} sorted: {(metal ? "METAL" : "PLASTIC")} in " +
+                    $"{snapshot.LastCycleTimeMs / 1000f:0.00} s (PLC cycle time).",
+                    ProductionEventSeverity.Success);
+                int missed = snapshot.PartsCompleted - lastPartsCompleted - 1;
+                if (missed > 0)
+                {
+                    productionMonitor.RecordEvent(
+                        $"{missed} more part(s) completed while the link was not live.", ProductionEventSeverity.Info);
+                }
+
                 Debug.Log($"PLC completed part {snapshot.PartsCompleted} " +
                     $"(metal {snapshot.MetalCount} / plastic {snapshot.PlasticCount}, cycle {snapshot.LastCycleTimeMs} ms).");
             }
 
             lastPartsCompleted = snapshot.PartsCompleted;
+            lastMetalCount = snapshot.MetalCount;
+            float lastCycleSeconds = snapshot.LastCycleTimeMs / 1000f;
+            float averageCycleSeconds = observedCycles > 0
+                ? observedCycleMsSum / (float)observedCycles / 1000f
+                : lastCycleSeconds;
+            productionMonitor.ImportExternalTotals(
+                snapshot.PartsCompleted, snapshot.MetalCount, snapshot.PlasticCount,
+                lastCycleSeconds, averageCycleSeconds);
 
             if (snapshot.FaultCode != lastFault)
             {
                 if (snapshot.FaultCode != Kit1PlcFault.None)
                 {
-                    productionMonitor.AbortPart($"PLC fault {(int)snapshot.FaultCode}: {snapshot.FaultCode}.");
                     productionMonitor.RecordAlarm($"PLC fault {(int)snapshot.FaultCode}: {snapshot.FaultCode}.");
                 }
                 else

@@ -122,8 +122,10 @@ Follow `Kit1_IO_Allocation.csv`. Panel power stays off while patching.
 - [ ] One **plastic** part. Expected: feed, detect, lift down, lower ejector (3A), lift up.
 - [ ] Selector ON, mixed batch of 6–8 parts. Counts in `HR_MetalCount` / `HR_PlasticCount`
       should match the trays.
-- [ ] Test red PB mid-batch (finishes the part, homes), E-stop mid-cycle (fault 1),
-      black PB to recover.
+- [ ] Test red PB mid-batch (finishes the part, homes), red PB right after green (cancels
+      before feeding), E-stop mid-cycle (fault 1), black PB to recover. After an E-stop, a
+      part left on the platform is sorted first on the next Start; clear any half-fed part
+      from the feed channel by hand before Reset.
 
 | Fault | Meaning | Usual cause |
 |---|---|---|
@@ -150,7 +152,11 @@ Missing a reed switch or the fibre amp on the day? Set `CFG_UseReeds := FALSE` (
 - [ ] Each part logs `Twin routed part … In sync.` in the Console. If it says **OUT OF SYNC**
       (usually because the link was switched on mid-cycle), wait until the machine is home and
       press **M** to resync the twin's workpiece.
-- [ ] Stop the PLC (Program mode): the badge goes **STALE** within 1 s and the twin holds still.
+- [ ] Stop the PLC (Program mode): the badge goes **STALE** within 1 s and the twin freezes
+      mid-move. It resumes as soon as fresh data arrives.
+- [ ] While live, the twin's own Start, manual cylinder keys and simulated utility faults are
+      disabled, and **F1 → Production** shows the PLC's own counts and cycle time. F8 hands
+      control back to the offline simulation.
 
 | Badge | Meaning | Fix |
 |---|---|---|

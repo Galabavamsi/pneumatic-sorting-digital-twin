@@ -154,6 +154,56 @@ namespace Kit1PlcSimulator
                 Expect(rig.Plc.HR_FaultCode == 4, $"fault code 4 (got {rig.Plc.HR_FaultCode})");
             });
 
+            Scenario("Stop pressed during start-up homing cancels the run (no feed)", () =>
+            {
+                Kit1Rig rig = new Kit1Rig();      // lift starts down, so homing takes a while
+                rig.Plant.Load(RandomParts(4, seed: 4));
+                rig.Plant.PressStart();
+                RunUntil(rig, r => r.Plc.HR_Step == 1, 5000);
+                Run(rig, 300);
+                Expect(rig.Plc.HR_Step == 1, "still homing when Stop is pressed");
+                rig.Plant.PressStop();
+                double maxFeed = 0;
+                for (double t = 0; t < 15000; t += ScanMs)
+                {
+                    rig.Step(ScanMs);
+                    maxFeed = Math.Max(maxFeed, rig.Plant.Feed.Position);
+                }
+
+                Expect(rig.Plc.HR_Step == 0, $"ends Idle (step {rig.Plc.HR_Step})");
+                Expect(maxFeed < 0.01, $"feeder never moved (max position {maxFeed:0.00})");
+                Expect(rig.Plc.HR_PartsDone == 0 && rig.Plant.Magazine.Count == 4, "no part taken from the magazine");
+                Expect(rig.Plc.ST_Homed, "machine homed");
+                rig.Plant.PressStart();
+                RunUntil(rig, r => r.Plc.HR_Step == 3, 15000);   // a later Start still works
+                Expect(rig.Plant.Violations.Count == 0, Violations(rig));
+            });
+
+            foreach (int stopAt in new[] { 5, 8 })
+            {
+                Scenario($"E-stop at step {stopAt} leaves a part on the lift: next Start sorts it first", () =>
+                {
+                    Kit1Rig rig = new Kit1Rig();
+                    List<Material> parts = new List<Material>
+                    {
+                        Material.Plastic, Material.Metal, Material.Plastic, Material.Metal
+                    };
+                    rig.Plant.Load(parts);
+                    rig.Plant.PressStart();
+                    RunUntil(rig, r => r.Plc.HR_Step == stopAt, 30000);
+                    rig.Plant.EStopPressed = true;
+                    Run(rig, 1500);   // bistable valves: a moving cylinder finishes its stroke
+                    Expect(rig.Plc.HR_Step == 90 && rig.Plc.HR_FaultCode == 1, "E-stop fault");
+                    Expect(rig.Plant.OnPlatform.HasValue, "a part is left on the platform");
+                    rig.Plant.EStopPressed = false;
+                    rig.Plant.PressReset();
+                    RunUntil(rig, r => r.Plc.HR_Step == 0, 30000);
+                    rig.Plant.PressStart();
+                    RunUntil(rig, r => r.Plc.HR_Step == 0 && r.Plc.HR_PartsDone == parts.Count, 90000);
+                    CheckBatch(rig, parts);
+                });
+            }
+
             Scenario("Heartbeat advances roughly every 100 ms", () =>
             {
                 // Self-resetting TON: period is 100 ms plus two scans (10 ms scans here,
