@@ -1,0 +1,43 @@
+modbus_address,pdu_offset,type,ccw_variable,access,meaning
+000001,0,coil,IN_MagazinePartPresent,read,Part waiting at magazine base
+000002,1,coil,IN_MagazineEmpty,read,Magazine empty (debounced)
+000003,2,coil,IN_PartOnLift,read,Part on lift platform
+000004,3,coil,IN_Inductive,read,IS-01 sees metal
+000005,4,coil,IN_Capacitive,read,CS-01 sees a part
+000006,5,coil,IN_LiftUp,read,Lift up
+000007,6,coil,IN_LiftDown,read,Lift down
+000008,7,coil,IN_FeedExtended,read,Feed (1A) extended
+000009,8,coil,IN_FeedRetracted,read,Feed (1A) retracted
+000010,9,coil,IN_LowerEjExtended,read,Lower ejector (3A) extended
+000011,10,coil,IN_LowerEjRetracted,read,Lower ejector (3A) retracted
+000012,11,coil,IN_UpperEjExtended,read,Upper ejector (2A) extended
+000013,12,coil,IN_UpperEjRetracted,read,Upper ejector (2A) retracted
+000014,13,coil,IN_EStopOk,read,E-stop healthy
+000015,14,coil,IN_StartPB,read,Start button
+000016,15,coil,IN_StopPB,read,Stop button
+000017,16,coil,OUT_FeedExtend,read,Solenoid SOL-01
+000018,17,coil,OUT_FeedRetract,read,Solenoid SOL-02
+000019,18,coil,OUT_LowerEjExtend,read,Solenoid SOL-05
+000020,19,coil,OUT_LowerEjRetract,read,Solenoid SOL-06
+000021,20,coil,OUT_UpperEjExtend,read,Solenoid SOL-03
+000022,21,coil,OUT_UpperEjRetract,read,Solenoid SOL-04
+000023,22,coil,OUT_LiftUp,read,Solenoid SOL-07
+000024,23,coil,OUT_LiftDown,read,Solenoid SOL-08
+000025,24,coil,ST_AutoRunning,read,Automatic cycle running
+000026,25,coil,ST_Faulted,read,Fault active
+000027,26,coil,ST_Homed,read,All axes home
+000028,27,coil,IN_ResetPB,read,Reset button
+000029,28,coil,IN_ContinuousMode,read,Selector: continuous
+000030,29,coil,HMI_Start,read/write,HMI start command (PLC clears it)
+000031,30,coil,HMI_Stop,read/write,HMI stop command (PLC clears it)
+000032,31,coil,HMI_Reset,read/write,HMI reset command (PLC clears it)
+400001,0,holding register,HR_Heartbeat,read,+1 about every 100 ms
+400002,1,holding register,HR_Step,read,Sequence step
+400003,2,holding register,HR_Material,read,0 none / 1 metal / 2 plastic
+400004,3,holding register,HR_PartsDone,read,Parts sorted
+400005,4,holding register,HR_MetalCount,read,Metal sorted
+400006,5,holding register,HR_PlasticCount,read,Plastic sorted
+400007,6,holding register,HR_FaultCode,read,Fault code
+400008,7,holding register,HR_LastCycleMs,read,Last cycle time (ms)
+400009,8,holding register,HR_MapVersion,read,Map version (must be 1)
+400010,9,holding register,HR_Reserved,read,Spare

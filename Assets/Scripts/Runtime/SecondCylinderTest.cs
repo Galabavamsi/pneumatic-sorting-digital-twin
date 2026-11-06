@@ -70,7 +70,7 @@ namespace Kit1DigitalTwin
                 return;
             }
 
-            if (!Kit1AutomaticSequence.IsRunning && Keyboard.current != null)
+            if (!Kit1AutomaticSequence.IsRunning && !PlcLink.Kit1PlcLink.LinkRequested && Keyboard.current != null)
             {
                 if (Keyboard.current.tKey.wasPressedThisFrame)
                 {
@@ -130,6 +130,13 @@ namespace Kit1DigitalTwin
         {
             autoCycle = false;
             targetPosition = 1f;
+        }
+
+        // PLC live link went stale: stop where we are until fresh data arrives.
+        public void CommandHold()
+        {
+            autoCycle = false;
+            targetPosition = position;
         }
 
         public void ApplyReplayPosition(float normalizedPosition)

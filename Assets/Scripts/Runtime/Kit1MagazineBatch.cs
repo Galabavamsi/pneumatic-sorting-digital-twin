@@ -186,18 +186,43 @@ namespace Kit1DigitalTwin
             }
         }
 
+        // PLC live mode: real materials are unknown until IS-01/CS-01 classify a
+        // part, so the waiting stack is shown in one neutral colour.
+        public void SetStackColour(Color colour)
+        {
+            for (int index = activeIndex + 1; index < renderers.Length; index++)
+            {
+                SetRendererColor(renderers[index], colour);
+            }
+        }
+
+        // Back to the simulated materials when the live link is switched off.
+        public void RestoreStackColours()
+        {
+            for (int index = activeIndex + 1; index < renderers.Length; index++)
+            {
+                SetRendererColor(renderers[index], materialSequence[index]);
+            }
+        }
+
         private static void SetRendererColor(
             MeshRenderer rendererComponent,
             Kit1SensorSimulation.WorkpieceMaterial material)
+        {
+            SetRendererColor(
+                rendererComponent,
+                material == Kit1SensorSimulation.WorkpieceMaterial.Metal
+                    ? new Color(0.15f, 0.72f, 1f, 1f)
+                    : new Color(1f, 0.58f, 0.12f, 1f));
+        }
+
+        private static void SetRendererColor(MeshRenderer rendererComponent, Color color)
         {
             if (rendererComponent == null)
             {
                 return;
             }
 
-            Color color = material == Kit1SensorSimulation.WorkpieceMaterial.Metal
-                ? new Color(0.15f, 0.72f, 1f, 1f)
-                : new Color(1f, 0.58f, 0.12f, 1f);
             MaterialPropertyBlock block = new MaterialPropertyBlock();
             rendererComponent.GetPropertyBlock(block);
             block.SetColor(Shader.PropertyToID("_BaseColor"), color);

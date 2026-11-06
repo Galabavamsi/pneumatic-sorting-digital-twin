@@ -47,3 +47,7 @@ Assets/Readme.asset
 Assets/Readme.asset.meta
 Assets/Scenes/SampleScene.unity
 Assets/Scenes/SampleScene.unity.meta
+
+# Kit 1 PLC simulator build output
+Tools/**/bin/
+!Tools/**/*.csproj

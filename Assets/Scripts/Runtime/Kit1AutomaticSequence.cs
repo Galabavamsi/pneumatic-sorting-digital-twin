@@ -96,6 +96,15 @@ namespace Kit1DigitalTwin
                 return;
             }
 
+            if (Kit1DigitalTwin.PlcLink.Kit1PlcLink.LinkRequested)
+            {
+                // The real PLC has taken over; stop the offline sequencer.
+                productionMonitor?.AbortPart("Offline sequence stopped: PLC live link took control.");
+                IsRunning = false;
+                SetState(SequenceState.Idle);
+                return;
+            }
+
             if (utilities != null && !utilities.OperationPermitted)
             {
                 productionMonitor?.AbortPart("Cycle aborted by electropneumatic utility interlock.");
@@ -119,6 +128,13 @@ namespace Kit1DigitalTwin
 
         private void StartCycle()
         {
+            if (Kit1DigitalTwin.PlcLink.Kit1PlcLink.LinkRequested)
+            {
+                Debug.LogWarning("PLC live link is ON: start the real machine with its green button. " +
+                    "Press F8 to return to offline simulation.");
+                return;
+            }
+
             if (utilities != null && !utilities.OperationPermitted)
             {
                 productionMonitor?.RecordAlarm("Cycle start blocked by utility interlock.");

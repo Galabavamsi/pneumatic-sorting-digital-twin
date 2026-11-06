@@ -72,7 +72,7 @@ namespace Kit1DigitalTwin
 
         private void Update()
         {
-            if (Keyboard.current == null || Kit1AutomaticSequence.IsRunning)
+            if (Keyboard.current == null || Kit1AutomaticSequence.IsRunning || PlcLink.Kit1PlcLink.LinkRequested)
             {
                 return;
             }

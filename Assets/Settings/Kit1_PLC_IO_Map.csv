@@ -1,19 +1,19 @@
 direction,logical_tag,physical_address,description
-DI,DI_MagazinePartPresent,TBD,Workpiece present at magazine discharge slot
-DI,DI_MagazineEmpty,TBD,No workpieces remaining in magazine
-DI,DI_PartOnLift,TBD,Workpiece transferred onto sorting lift
-DI,DI_MetalDetected,TBD,Inductive sensor detects metallic workpiece
-DI,DI_PlasticDetected,TBD,Capacitive sensor detects plastic workpiece
-DI,DI_LiftUp,TBD,Vertical lift upper reed switch
-DI,DI_LiftDown,TBD,Vertical lift lower reed switch
-DI,DI_Cylinder1Extended,TBD,Feed cylinder extended reed switch
-DI,DI_Cylinder1Retracted,TBD,Feed cylinder retracted reed switch
-DI,DI_Cylinder2Extended,TBD,Lower ejector extended reed switch
-DI,DI_Cylinder2Retracted,TBD,Lower ejector retracted reed switch
-DI,DI_Cylinder3Extended,TBD,Upper ejector extended reed switch
-DI,DI_Cylinder3Retracted,TBD,Upper ejector retracted reed switch
+DI,DI_MagazinePartPresent,DI-6 (_IO_EM_DI_06),Workpiece present at magazine discharge slot (BPRS-620 fibre amp)
+DI,DI_MagazineEmpty,DERIVED,No workpieces remaining in magazine (PLC debounces DI-6 OFF)
+DI,DI_PartOnLift,DERIVED,Workpiece transferred onto sorting lift (PLC: IS-01 OR CS-01)
+DI,DI_MetalDetected,DI-4 (_IO_EM_DI_04),Inductive sensor IS-01 detects metallic workpiece
+DI,DI_PlasticDetected,DI-5 (_IO_EM_DI_05),Capacitive sensor CS-01 sees a part and IS-01 does not
+DI,DI_LiftUp,DI-15 (_IO_EM_DI_15),Vertical lift (rig 4A) upper sensor
+DI,DI_LiftDown,DI-14 (_IO_EM_DI_14),Vertical lift (rig 4A) lower sensor
+DI,DI_Cylinder1Extended,DI-9 (_IO_EM_DI_09),Feed cylinder (rig 1A) extended reed switch
+DI,DI_Cylinder1Retracted,DI-8 (_IO_EM_DI_08),Feed cylinder (rig 1A) retracted reed switch
+DI,DI_Cylinder2Extended,DI-13 (_IO_EM_DI_13),Lower ejector (rig 3A) extended reed switch
+DI,DI_Cylinder2Retracted,DI-12 (_IO_EM_DI_12),Lower ejector (rig 3A) retracted reed switch
+DI,DI_Cylinder3Extended,DI-11 (_IO_EM_DI_11),Upper ejector (rig 2A) extended reed switch
+DI,DI_Cylinder3Retracted,DI-10 (_IO_EM_DI_10),Upper ejector (rig 2A) retracted reed switch
 DI,DI_WorkpieceReleased,SIMULATED,Workpiece released from controlled motion into gravity
-DO,DO_Cylinder1Extend,TBD,Command feed cylinder to extend; false commands retract
-DO,DO_Cylinder2Extend,TBD,Command lower ejector to extend; false commands retract
-DO,DO_Cylinder3Extend,TBD,Command upper ejector to extend; false commands retract
-DO,DO_LiftUp,TBD,Command lift up; false commands lift down
+DO,DO_Cylinder1Extend,DO-0/DO-1 -> SOL-01/SOL-02,Feed cylinder (rig 1A) extend coil / retract coil
+DO,DO_Cylinder2Extend,DO-4/DO-5 -> SOL-05/SOL-06,Lower ejector (rig 3A) extend coil / retract coil
+DO,DO_Cylinder3Extend,DO-2/DO-3 -> SOL-03/SOL-04,Upper ejector (rig 2A) extend coil / retract coil
+DO,DO_LiftUp,DO-6/DO-7 -> SOL-07/SOL-08,Lift (rig 4A) up coil / down coil

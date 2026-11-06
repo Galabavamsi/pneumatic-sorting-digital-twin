@@ -1,0 +1,9 @@
+{
+    "enabledOnStart": false,
+    "host": "127.0.0.1",
+    "port": 502,
+    "unitId": 1,
+    "pollHz": 20,
+    "staleAfterMs": 1000,
+    "timeoutMs": 1000
+}

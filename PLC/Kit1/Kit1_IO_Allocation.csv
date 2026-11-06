@@ -1,0 +1,26 @@
+patch_jack,plc_address,logical_tag,rig_device,lead_tags,notes
+DI-0,_IO_EM_DI_00,IN_StartPB,Green pushbutton,(2 jacks),One jack to the DI-0 24V jack; the other to DI-0
+DI-1,_IO_EM_DI_01,IN_StopPB,Red pushbutton,(2 jacks),NO contact assumed
+DI-2,_IO_EM_DI_02,IN_ResetPB,Black pushbutton,(2 jacks),Clears faults; in Idle also homes and zeroes counters
+DI-3,_IO_EM_DI_03,IN_EStopOk,E-stop mushroom,(2 jacks),Use the NC contact; must read ON when released
+DI-4,_IO_EM_DI_04,IN_Inductive,IS-01 inductive (metal),IS-01 (24V) (0V) (OUT),PNP NO
+DI-5,_IO_EM_DI_05,IN_Capacitive,CS-01 capacitive (BTH BCR12-PN6),CS-01 (24V) (0V) (OUT),PNP NO; sees metal and plastic
+DI-6,_IO_EM_DI_06,IN_MagazinePartPresent,BPRS-620 fibre + amplifier at magazine base,(amp leads),Set amp so output is ON with a part present
+DI-7,_IO_EM_DI_07,IN_ContinuousMode,Selector switch,(2 jacks),ON = run until magazine empty; OFF = one part per Start
+DI-8,_IO_EM_DI_08,IN_FeedRetracted,1A reed switch at rod-in end,,Reed on bracket nearest the cap end
+DI-9,_IO_EM_DI_09,IN_FeedExtended,1A reed switch at rod-out end,,
+DI-10,_IO_EM_DI_10,IN_UpperEjRetracted,2A reed switch rod-in,,2A = upper ejector (top of KIT-1(B) frame)
+DI-11,_IO_EM_DI_11,IN_UpperEjExtended,2A reed switch rod-out,,
+DI-12,_IO_EM_DI_12,IN_LowerEjRetracted,3A reed switch rod-in,,3A = lower ejector (under KIT-1(A) plate)
+DI-13,_IO_EM_DI_13,IN_LowerEjExtended,3A reed switch rod-out,,
+DI-14,_IO_EM_DI_14,IN_LiftDown,4A slot sensor platform down,,4A = ADNGF-16-30 guided lift
+DI-15,_IO_EM_DI_15,IN_LiftUp,4A slot sensor platform up,,
+DO-0,_IO_EM_DO_00,OUT_FeedExtend,SOL-01 (1S1) valve 1 coil 14,,PP-01 tube -> 1A cap-end port (extends)
+DO-1,_IO_EM_DO_01,OUT_FeedRetract,SOL-02 (1S2) valve 1 coil 12,,PP-02 tube -> 1A rod-end port (retracts)
+DO-2,_IO_EM_DO_02,OUT_UpperEjExtend,SOL-03 (2S1),,PP-03 -> 2A cap end
+DO-3,_IO_EM_DO_03,OUT_UpperEjRetract,SOL-04 (2S2),,PP-04 -> 2A rod end
+DO-4,_IO_EM_DO_04,OUT_LowerEjExtend,SOL-05 (3S1),,PP-05 -> 3A cap end
+DO-5,_IO_EM_DO_05,OUT_LowerEjRetract,SOL-06 (3S2),,PP-06 -> 3A rod end
+DO-6,_IO_EM_DO_06,OUT_LiftUp,SOL-07 (4S1),,PP-07 -> the 4A port that RAISES the platform (check mounting)
+DO-7,_IO_EM_DO_07,OUT_LiftDown,SOL-08 (4S2),,PP-08 -> the 4A port that LOWERS the platform
+SOL (0V),,,Solenoid coil return,,Patch to a 0V jack if it is not internally bridged (check)

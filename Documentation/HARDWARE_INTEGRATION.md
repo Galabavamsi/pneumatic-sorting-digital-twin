@@ -8,6 +8,33 @@ Confidence is marked throughout: **confirmed** means read directly off a label o
 **probable** means inferred and worth checking at the machine, **unknown** means nobody has
 measured it yet.
 
+> **Update, later on 2026-11-05.** A second pass over all 52 photos corrected several points
+> below. Where they disagree, these corrections win:
+>
+> - **PLC catalogue** is partly legible: `…E-48QBB`, so probably `2080-L50E-48QBB` (28 DI / 20 DO).
+>   Only DI 0–15 and DO 0–19 reach the patch panel; terminals I-16…I-27 are unwired. Input
+>   common is 0 V DC (PNP sensors).
+> - **2A is horizontal**, on top of the KIT-1(B) frame (the photo used before was rotated 90°).
+>   It is the **upper ejector**.
+> - **3A sits under the KIT-1(A) plate**, below 1A. It is the **lower ejector**. Its part
+>   number (19201) matches 1A, so the 50 mm stroke is inferred rather than read.
+> - The black clamps on 1A/2A/3A are **empty sensor brackets**, not reed switches. No reed switch
+>   or lead is visible in any photo. Reed switches and the fibre amplifier are being fitted for
+>   bring-up.
+> - BPRS-620 has **no amplifier attached** yet, so it is not a DI until one is fitted.
+> - The operator push buttons, selector and E-stop each have two unlabelled jacks and are **not
+>   hardwired** to the PLC.
+> - The conveyor AI(V)/AI(C) jacks are the VFD speed reference, so they need a PLC AO, not an AI.
+> - **Section 1 has a workaround after all.** Only the git-lfs batch API is refused; GitHub's
+>   media server (the file page's Raw/download link) serves all three meshes intact, with SHA-256
+>   matching the pointers. See "Getting the meshes" in [KIT1_BRINGUP.md](KIT1_BRINGUP.md).
+>
+> The resulting Kit 1 PLC program, patch list and Modbus map are in [`PLC/Kit1`](../PLC/Kit1/README.md).
+> The read-only twin link described in sections 5 and 8 is implemented in
+> `Assets/Scripts/Runtime/PlcLink`. The hardware-day checklist is [KIT1_BRINGUP.md](KIT1_BRINGUP.md).
+> The proposed register block in section 5 was refined into 32 coils plus 10 holding
+> registers; `PLC/Kit1/Kit1_Modbus_Map.csv` is authoritative.
+
 ---
 
 ## 1. Blocker: the CAD meshes cannot be downloaded
