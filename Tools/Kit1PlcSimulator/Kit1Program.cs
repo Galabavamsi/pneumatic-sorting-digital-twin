@@ -286,8 +286,9 @@ namespace Kit1PlcSimulator
                         cycleActive = true;
                         HR_Step = 5;
                     }
-                    else if (IN_MagazineEmpty)
+                    else if (IN_MagazineEmpty && tStep.ET >= CFG_EmptyDebounce)
                     {
+                        // Batch complete; the wait ignores a flag left over from the last batch.
                         HR_Step = 13;
                     }
                     else if (IN_MagazinePartPresent && !IN_PartOnLift && allRetracted && IN_LiftUp &&

@@ -193,8 +193,11 @@ CASE HR_Step OF
                sort it before feeding another one onto it. *)
             cycleActive := TRUE;
             HR_Step := 5;
-        ELSIF IN_MagazineEmpty THEN
-            HR_Step := 13;   (* batch complete *)
+        ELSIF IN_MagazineEmpty AND tStep.ET >= CFG_EmptyDebounce THEN
+            (* Batch complete. Waiting CFG_EmptyDebounce in this step stops a flag
+               left over from the last batch from ending a run whose freshly loaded
+               parts are still dropping to the sensor. *)
+            HR_Step := 13;
         ELSIF IN_MagazinePartPresent AND NOT IN_PartOnLift AND allRetracted AND IN_LiftUp
               AND tStep.ET >= CFG_FeedDelay THEN
             cycleActive := TRUE;

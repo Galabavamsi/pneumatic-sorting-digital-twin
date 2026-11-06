@@ -38,6 +38,17 @@ namespace Kit1PlcSimulator
         }
 
         public int Port => ((IPEndPoint)listener.LocalEndpoint).Port;
+
+        public int ActiveClients
+        {
+            get
+            {
+                lock (clients)
+                {
+                    return clients.Count;
+                }
+            }
+        }
         public int RequestsServed;
 
         public void Start()

@@ -94,6 +94,7 @@ namespace Kit1PlcSimulator
 
         public Material? OnPlatform => onPlatform;
         public bool PartAtSlot => slotOccupied;
+        public bool StartPressed => startPressMs > 0;
 
         public void Load(IEnumerable<Material> parts)
         {

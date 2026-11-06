@@ -81,6 +81,17 @@ namespace Kit1DigitalTwin.PlcLink
                     live ? ProductionEventSeverity.Success : ProductionEventSeverity.Warning);
                 if (live)
                 {
+                    // Counters may have been reset while we were disconnected: drop the
+                    // old batch's cycle times before adopting the new baseline.
+                    if (snapshot.PartsCompleted < lastPartsCompleted)
+                    {
+                        observedCycleMsSum = 0;
+                        observedCycles = 0;
+                        productionMonitor?.RecordEvent(
+                            "PLC production counters were reset while the link was down.",
+                            ProductionEventSeverity.Info);
+                    }
+
                     lastPartsCompleted = snapshot.PartsCompleted;
                     lastMetalCount = snapshot.MetalCount;
                     lastMaterial = Kit1PlcMaterial.None;

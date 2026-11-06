@@ -31,6 +31,10 @@ that raises a fault; all coils drop (the 5/2 bistable valves hold position). E-s
 faults immediately. Reset (black PB) clears a fault when the E-stop is released and
 re-homes; in Idle it also zeroes the counters.
 
+The batch only ends on "magazine empty" after `CFG_EmptyDebounce` in WaitPart, so pressing
+Start right after dropping new parts into an empty magazine runs them instead of
+returning to Idle on the previous batch's empty flag.
+
 If a part is still on the lift platform when the next cycle starts (for example after
 an E-stop mid-sort), the PLC sorts that part first and never feeds onto an occupied
 platform. A part left **half-fed** in the feed channel is not detected: clear it by

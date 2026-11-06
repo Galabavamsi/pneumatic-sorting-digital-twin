@@ -23,8 +23,12 @@ namespace Kit1DigitalTwin.PlcLink
         private readonly int port;
         private readonly byte unitId;
         private readonly int timeoutMs;
+        // Dispose() may be called from another thread to abort a poll; the gate
+        // keeps it from racing Connect(), and a disposed client never reconnects.
+        private readonly object gate = new object();
         private TcpClient client;
         private NetworkStream stream;
+        private bool disposed;
         private ushort transactionId;
 
         public ModbusTcpClient(string host, int port = 502, byte unitId = 1, int timeoutMs = 1000)
@@ -35,21 +39,54 @@ namespace Kit1DigitalTwin.PlcLink
             this.timeoutMs = timeoutMs;
         }
 
-        public bool Connected => client != null && client.Connected && stream != null;
+        public bool Connected
+        {
+            get
+            {
+                lock (gate)
+                {
+                    return !disposed && client != null && client.Connected && stream != null;
+                }
+            }
+        }
 
         public void Connect()
         {
             Close();
-            client = new TcpClient { NoDelay = true, ReceiveTimeout = timeoutMs, SendTimeout = timeoutMs };
-            IAsyncResult pending = client.BeginConnect(host, port, null, null);
-            if (!pending.AsyncWaitHandle.WaitOne(timeoutMs))
+            TcpClient candidate = new TcpClient { NoDelay = true, ReceiveTimeout = timeoutMs, SendTimeout = timeoutMs };
+            try
             {
-                Close();
-                throw new ModbusException($"Timed out connecting to {host}:{port}.");
-            }
+                lock (gate)
+                {
+                    if (disposed)
+                    {
+                        throw new ObjectDisposedException(nameof(ModbusTcpClient));
+                    }
+                }
 
-            client.EndConnect(pending);
-            stream = client.GetStream();
+                IAsyncResult pending = candidate.BeginConnect(host, port, null, null);
+                if (!pending.AsyncWaitHandle.WaitOne(timeoutMs))
+                {
+                    throw new ModbusException($"Timed out connecting to {host}:{port}.");
+                }
+
+                candidate.EndConnect(pending);
+                lock (gate)
+                {
+                    if (disposed)
+                    {
+                        throw new ObjectDisposedException(nameof(ModbusTcpClient));
+                    }
+
+                    client = candidate;
+                    stream = candidate.GetStream();
+                    candidate = null;   // ownership passed to the fields
+                }
+            }
+            finally
+            {
+                candidate?.Close();     // timed out, failed, or disposed meanwhile
+            }
         }
 
         public bool[] ReadCoils(ushort start, ushort count)
@@ -99,7 +136,13 @@ namespace Kit1DigitalTwin.PlcLink
 
         private byte[] Transact(byte function, ushort start, ushort count)
         {
-            if (!Connected)
+            NetworkStream activeStream;
+            lock (gate)
+            {
+                activeStream = disposed ? null : stream;
+            }
+
+            if (activeStream == null)
             {
                 throw new ModbusException("Not connected.");
             }
@@ -115,9 +158,9 @@ namespace Kit1DigitalTwin.PlcLink
                 (byte)(start >> 8), (byte)start,
                 (byte)(count >> 8), (byte)count
             };
-            stream.Write(request, 0, request.Length);
+            activeStream.Write(request, 0, request.Length);
 
-            byte[] header = ReadExactly(7);
+            byte[] header = ReadExactly(activeStream, 7);
             ushort responseTransaction = (ushort)((header[0] << 8) | header[1]);
             int length = (header[4] << 8) | header[5];
             if (responseTransaction != transactionId)
@@ -131,7 +174,7 @@ namespace Kit1DigitalTwin.PlcLink
                 throw new ModbusException($"Invalid MBAP length {length}.");
             }
 
-            byte[] body = ReadExactly(length - 1);
+            byte[] body = ReadExactly(activeStream, length - 1);
             byte responseFunction = body[0];
             if (responseFunction == (function | 0x80))
             {
@@ -149,13 +192,13 @@ namespace Kit1DigitalTwin.PlcLink
             return payload;
         }
 
-        private byte[] ReadExactly(int count)
+        private static byte[] ReadExactly(NetworkStream source, int count)
         {
             byte[] buffer = new byte[count];
             int offset = 0;
             while (offset < count)
             {
-                int read = stream.Read(buffer, offset, count - offset);
+                int read = source.Read(buffer, offset, count - offset);
                 if (read <= 0)
                 {
                     throw new IOException("PLC closed the connection.");
@@ -169,14 +212,29 @@ namespace Kit1DigitalTwin.PlcLink
 
         public void Close()
         {
-            stream?.Dispose();
-            client?.Close();
-            stream = null;
-            client = null;
+            NetworkStream oldStream;
+            TcpClient oldClient;
+            lock (gate)
+            {
+                oldStream = stream;
+                oldClient = client;
+                stream = null;
+                client = null;
+            }
+
+            oldStream?.Dispose();
+            oldClient?.Close();
         }
 
+        // Safe to call from another thread: ends any blocking read and prevents
+        // any later Connect() from opening a new socket.
         public void Dispose()
         {
+            lock (gate)
+            {
+                disposed = true;
+            }
+
             Close();
         }
     }

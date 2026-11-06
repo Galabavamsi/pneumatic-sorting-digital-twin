@@ -293,6 +293,7 @@ namespace Kit1DigitalTwin.PlcLink
         private void PollLoop(PollWorker worker)
         {
             int periodMs = Mathf.Max(10, 1000 / Mathf.Max(1, config.pollHz));
+            ModbusTcpClient client = null;   // the client this thread is using; disposed on exit
             try
             {
                 while (worker.Run)
@@ -300,7 +301,6 @@ namespace Kit1DigitalTwin.PlcLink
                     Stopwatch cycle = Stopwatch.StartNew();
                     try
                     {
-                        ModbusTcpClient client;
                         lock (worker)
                         {
                             if (!worker.Run)
@@ -321,7 +321,13 @@ namespace Kit1DigitalTwin.PlcLink
                         if (!client.Connected)
                         {
                             SetWorkerState(worker, Kit1PlcLinkState.Connecting);
+                            // Throws ObjectDisposedException if StopLink disposed this client
+                            // meanwhile, so a stopped worker can never open a new socket.
                             client.Connect();
+                            if (!worker.Run)
+                            {
+                                break;
+                            }
                         }
 
                         bool[] coils = client.ReadCoils(Kit1ModbusMap.CoilStart, Kit1ModbusMap.CoilCount);
@@ -411,6 +417,7 @@ namespace Kit1DigitalTwin.PlcLink
             }
             finally
             {
+                client?.Dispose();
                 lock (worker)
                 {
                     worker.Client?.Dispose();

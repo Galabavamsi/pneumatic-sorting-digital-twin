@@ -204,6 +204,23 @@ namespace Kit1PlcSimulator
                 });
             }
 
+            Scenario("Start pressed while freshly loaded parts are still dropping runs the batch", () =>
+            {
+                Kit1Rig rig = new Kit1Rig();
+                rig.Plant.Load(new[] { Material.Metal });
+                rig.Plant.PressStart();
+                RunUntil(rig, r => r.Plc.HR_Step == 0 && r.Plc.HR_PartsDone == 1, 30000);
+                Run(rig, 3000);   // magazine-empty flag now latched from the finished batch
+                Expect(rig.Plc.IN_MagazineEmpty, "magazine-empty flag latched after the batch");
+                List<Material> second = new List<Material> { Material.Plastic, Material.Metal };
+                rig.Plant.Load(second);   // parts need 300 ms to reach the sensor
+                rig.Plant.PressStart();   // operator presses Start straight away
+                RunUntil(rig, r => r.Plc.HR_Step == 0 && r.Plc.HR_PartsDone == 3, 60000);
+                Expect(rig.Plant.Magazine.Count == 0 && rig.Plc.HR_PlasticCount == 1 && rig.Plc.HR_MetalCount == 2,
+                    "both freshly loaded parts sorted");
+                Expect(rig.Plant.Violations.Count == 0, Violations(rig));
+            });
+
             Scenario("Heartbeat advances roughly every 100 ms", () =>
             {
                 // Self-resetting TON: period is 100 ms plus two scans (10 ms scans here,
@@ -365,6 +382,45 @@ namespace Kit1PlcSimulator
                     "FC05 write to an output coil rejected");
             }
 
+            // Dispose() racing Connect() must never leave a socket open, and a
+            // disposed client must refuse to reconnect (the twin's StopLink path).
+            Random race = new Random(5);
+            for (int round = 0; round < 200; round++)
+            {
+                ModbusTcpClient racer = new ModbusTcpClient("127.0.0.1", server.Port);
+                Thread connector = new Thread(() =>
+                {
+                    try
+                    {
+                        racer.Connect();
+                    }
+                    catch (Exception)
+                    {
+                    }
+                });
+                connector.Start();
+                Thread.SpinWait(race.Next(0, 200000));
+                racer.Dispose();
+                connector.Join();
+            }
+
+            bool refused = false;
+            ModbusTcpClient disposedClient = new ModbusTcpClient("127.0.0.1", server.Port);
+            disposedClient.Dispose();
+            try
+            {
+                disposedClient.Connect();
+            }
+            catch (ObjectDisposedException)
+            {
+                refused = true;
+            }
+
+            Thread.Sleep(500);   // let the server notice closed sockets
+            Expect(server.ActiveClients == 0,
+                $"no connections left open after 200 dispose/connect races (open: {server.ActiveClients})");
+            Expect(refused, "a disposed client refuses to reconnect");
+
             stop = true;
             plcThread.Join();
 
@@ -505,14 +561,18 @@ namespace Kit1PlcSimulator
                 {
                     lock (rig.Sync)
                     {
-                        if (rig.Plc.HR_Step == 0 && rig.Plant.Magazine.Count == 0 && !rig.Plant.PartAtSlot)
+                        // Like an operator: reload when empty, then give one press of
+                        // Start once a part has dropped to the magazine sensor.
+                        if (rig.Plc.HR_Step == 0 && !rig.Plant.StartPressed)
                         {
-                            rig.Plant.Load(nextBatch());
-                            rig.Plant.PressStart();
-                        }
-                        else if (rig.Plc.HR_Step == 0 && rig.Plant.Magazine.Count > 0)
-                        {
-                            rig.Plant.PressStart();
+                            if (rig.Plant.Magazine.Count == 0 && !rig.Plant.PartAtSlot)
+                            {
+                                rig.Plant.Load(nextBatch());
+                            }
+                            else if (rig.Plant.PartAtSlot)
+                            {
+                                rig.Plant.PressStart();
+                            }
                         }
                     }
                 }
