@@ -23,25 +23,26 @@
 
 (* ---------------------------------------------------------------------
    1. PHYSICAL INPUTS -> LOGICAL INPUTS
-      Patch-panel jack DI-n is assumed to be _IO_EM_DI_nn.
+      Patch-panel jack DI-n is _IO_EM_DI_nn. DI-0..DI-8 are as wired on
+      the rig on 2026-11-10 (Kit1_IO_Allocation.csv).
       If you patch differently, change ONLY this section.
    --------------------------------------------------------------------- *)
-IN_StartPB        := _IO_EM_DI_00;   (* green PB, NO contact  *)
-IN_StopPB         := _IO_EM_DI_01;   (* red PB,   NO contact  *)
-IN_ResetPB        := _IO_EM_DI_02;   (* black PB, NO contact  *)
-rawEStop          := _IO_EM_DI_03;   (* E-stop contact        *)
-IN_Inductive      := _IO_EM_DI_04;   (* IS-01, PNP NO, metal  *)
-IN_Capacitive     := _IO_EM_DI_05;   (* CS-01, PNP NO, any part *)
-rawMagPart        := _IO_EM_DI_06;   (* BPRS-620 fibre amp output *)
-IN_ContinuousMode := _IO_EM_DI_07;   (* selector: ON = run until empty, OFF = one part per Start *)
-rawFeedRet        := _IO_EM_DI_08;   (* 1A reed, retracted    *)
-rawFeedExt        := _IO_EM_DI_09;   (* 1A reed, extended     *)
-rawUpperRet       := _IO_EM_DI_10;   (* 2A reed, retracted    *)
-rawUpperExt       := _IO_EM_DI_11;   (* 2A reed, extended     *)
-rawLowerRet       := _IO_EM_DI_12;   (* 3A reed, retracted    *)
-rawLowerExt       := _IO_EM_DI_13;   (* 3A reed, extended     *)
-rawLiftDown       := _IO_EM_DI_14;   (* 4A sensor, platform down *)
-rawLiftUp         := _IO_EM_DI_15;   (* 4A sensor, platform up   *)
+rawFeedRet        := _IO_EM_DI_00;   (* 1A reed, retracted  (input lights 0, 2, 4 are on with all three pulled in) *)
+rawFeedExt        := _IO_EM_DI_01;   (* 1A reed, extended     *)
+rawUpperRet       := _IO_EM_DI_02;   (* 2A reed, retracted    *)
+rawUpperExt       := _IO_EM_DI_03;   (* 2A reed, extended     *)
+rawLowerRet       := _IO_EM_DI_04;   (* 3A reed, retracted    *)
+rawLowerExt       := _IO_EM_DI_05;   (* 3A reed, extended     *)
+IN_Capacitive     := _IO_EM_DI_06;   (* CS-01, PNP NO, any part *)
+IN_Inductive      := _IO_EM_DI_07;   (* IS-01, PNP NO, metal  *)
+rawMagPart        := _IO_EM_DI_08;   (* BTS-01 light sensor at the magazine base *)
+IN_StartPB        := _IO_EM_DI_09;   (* green PB, NO contact  *)
+IN_StopPB         := _IO_EM_DI_10;   (* red PB,   NO contact  *)
+IN_ResetPB        := _IO_EM_DI_11;   (* black PB, NO contact  *)
+rawEStop          := _IO_EM_DI_12;   (* E-stop contact        *)
+IN_ContinuousMode := _IO_EM_DI_13;   (* selector: ON = run until empty, OFF = one part per Start *)
+rawLiftDown       := _IO_EM_DI_14;   (* spare: 4A has no sensors on this rig (CFG_LiftSensors) *)
+rawLiftUp         := _IO_EM_DI_15;   (* spare *)
 
 (* E-stop: NC contact means TRUE = healthy. *)
 IF NOT CFG_EStopFitted THEN
@@ -53,15 +54,16 @@ ELSE
 END_IF;
 
 (* Timed-move mode: a position counts as reached once its coil has been
-   held for CFG_TravelTime. Uses last scan's outputs. *)
-tvFeedExt(IN := OUT_FeedExtend, PT := CFG_TravelTime);
-tvFeedRet(IN := OUT_FeedRetract, PT := CFG_TravelTime);
-tvUpperExt(IN := OUT_UpperEjExtend, PT := CFG_TravelTime);
-tvUpperRet(IN := OUT_UpperEjRetract, PT := CFG_TravelTime);
-tvLowerExt(IN := OUT_LowerEjExtend, PT := CFG_TravelTime);
-tvLowerRet(IN := OUT_LowerEjRetract, PT := CFG_TravelTime);
-tvLiftUp(IN := OUT_LiftUp, PT := CFG_TravelTime);
-tvLiftDown(IN := OUT_LiftDown, PT := CFG_TravelTime);
+   held for CFG_TravelTime. Uses last scan's outputs.
+   Function blocks are called with positional arguments: TON(IN, PT). *)
+tvFeedExt(OUT_FeedExtend, CFG_TravelTime);
+tvFeedRet(OUT_FeedRetract, CFG_TravelTime);
+tvUpperExt(OUT_UpperEjExtend, CFG_TravelTime);
+tvUpperRet(OUT_UpperEjRetract, CFG_TravelTime);
+tvLowerExt(OUT_LowerEjExtend, CFG_TravelTime);
+tvLowerRet(OUT_LowerEjRetract, CFG_TravelTime);
+tvLiftUp(OUT_LiftUp, CFG_TravelTime);
+tvLiftDown(OUT_LiftDown, CFG_TravelTime);
 
 IF CFG_UseReeds THEN
     IN_FeedExtended    := rawFeedExt;
@@ -70,8 +72,6 @@ IF CFG_UseReeds THEN
     IN_UpperEjRetracted := rawUpperRet;
     IN_LowerEjExtended := rawLowerExt;
     IN_LowerEjRetracted := rawLowerRet;
-    IN_LiftUp          := rawLiftUp;
-    IN_LiftDown        := rawLiftDown;
 ELSE
     IN_FeedExtended    := tvFeedExt.Q;
     IN_FeedRetracted   := tvFeedRet.Q;
@@ -79,34 +79,52 @@ ELSE
     IN_UpperEjRetracted := tvUpperRet.Q;
     IN_LowerEjExtended := tvLowerExt.Q;
     IN_LowerEjRetracted := tvLowerRet.Q;
-    IN_LiftUp          := tvLiftUp.Q;
-    IN_LiftDown        := tvLiftDown.Q;
+END_IF;
+
+(* Lift (4A) position without sensors: reached once its coil has been held
+   for CFG_TravelTime, then remembered while both coils are off, because the
+   bistable valve keeps the platform where it is. Energising a coil always
+   re-times the move. *)
+IF OUT_LiftUp THEN
+    liftAtDown := FALSE;
+    liftAtUp := tvLiftUp.Q;
+ELSIF OUT_LiftDown THEN
+    liftAtUp := FALSE;
+    liftAtDown := tvLiftDown.Q;
+END_IF;
+
+IF CFG_UseReeds AND CFG_LiftSensors THEN
+    IN_LiftUp   := rawLiftUp;
+    IN_LiftDown := rawLiftDown;
+ELSE
+    IN_LiftUp   := liftAtUp;
+    IN_LiftDown := liftAtDown;
 END_IF;
 
 (* Part on the lift platform: either material sensor sees it. *)
 IN_PartOnLift := IN_Inductive OR IN_Capacitive;
 
-(* Magazine: real fibre sensor, or inferred from "fed but nothing arrived". *)
+(* Magazine: real sensor (BTS-01), or inferred from "fed but nothing arrived". *)
 IF CFG_UseMagSensor THEN
     IN_MagazinePartPresent := rawMagPart;
 ELSE
     IN_MagazinePartPresent := NOT magEmptyLatched;
 END_IF;
-tEmpty(IN := NOT IN_MagazinePartPresent, PT := CFG_EmptyDebounce);
+tEmpty(NOT IN_MagazinePartPresent, CFG_EmptyDebounce);
 IN_MagazineEmpty := tEmpty.Q;
 
 (* ---------------------------------------------------------------------
    2. HOUSEKEEPING: edges, heartbeat, step timer
    --------------------------------------------------------------------- *)
-rtStart(CLK := IN_StartPB OR HMI_Start);
-rtStop(CLK := IN_StopPB OR HMI_Stop);
-rtReset(CLK := IN_ResetPB OR HMI_Reset);
+rtStart(IN_StartPB OR HMI_Start);
+rtStop(IN_StopPB OR HMI_Stop);
+rtReset(IN_ResetPB OR HMI_Reset);
 HMI_Start := FALSE;
 HMI_Stop := FALSE;
 HMI_Reset := FALSE;
 
 (* Heartbeat: +1 every 100 ms so the twin can detect a stalled PLC. *)
-tHb(IN := NOT hbPulse, PT := T#100ms);
+tHb(NOT hbPulse, T#100ms);
 hbPulse := tHb.Q;
 IF hbPulse THEN
     HR_Heartbeat := HR_Heartbeat + 1;
@@ -118,8 +136,8 @@ END_IF;
 (* Step timer restarts whenever the step changes. *)
 stepChanged := HR_Step <> stepPrev;
 stepPrev := HR_Step;
-tStep(IN := NOT stepChanged, PT := T#1h);
-tCycle(IN := cycleActive, PT := T#1h);
+tStep(NOT stepChanged, T#1h);
+tCycle(cycleActive, T#1h);
 
 HR_MapVersion := 1;
 
@@ -376,11 +394,11 @@ ST_Homed := allRetracted AND IN_LiftUp;
       Patch DO-n -> SOL-xx as listed; PP-xx tubing as in Kit1_IO_Allocation.csv.
       If you patch differently, change ONLY this section.
    --------------------------------------------------------------------- *)
-_IO_EM_DO_00 := OUT_FeedExtend;      (* -> SOL-01 (1S1) -> PP-01 -> 1A extend  *)
+_IO_EM_DO_00 := OUT_FeedExtend;      (* -> SOL-01 (1S1) -> PP-01 -> 1A extend  (checked at the rig) *)
 _IO_EM_DO_01 := OUT_FeedRetract;     (* -> SOL-02 (1S2) -> PP-02 -> 1A retract *)
-_IO_EM_DO_02 := OUT_UpperEjExtend;   (* -> SOL-03 (2S1) -> PP-03 -> 2A extend  *)
+_IO_EM_DO_02 := OUT_UpperEjExtend;   (* -> SOL-03 (2S1) -> PP-03 -> 2A extend  (checked at the rig) *)
 _IO_EM_DO_03 := OUT_UpperEjRetract;  (* -> SOL-04 (2S2) -> PP-04 -> 2A retract *)
-_IO_EM_DO_04 := OUT_LowerEjExtend;   (* -> SOL-05 (3S1) -> PP-05 -> 3A extend  *)
-_IO_EM_DO_05 := OUT_LowerEjRetract;  (* -> SOL-06 (3S2) -> PP-06 -> 3A retract *)
-_IO_EM_DO_06 := OUT_LiftUp;          (* -> SOL-07 (4S1) -> PP-07 -> 4A platform up   *)
+_IO_EM_DO_04 := OUT_LowerEjRetract;  (* -> SOL-05 (3S1) -> PP-05 -> 3A retract (checked at the rig: 3A is the other way round) *)
+_IO_EM_DO_05 := OUT_LowerEjExtend;   (* -> SOL-06 (3S2) -> PP-06 -> 3A extend  *)
+_IO_EM_DO_06 := OUT_LiftUp;          (* -> SOL-07 (4S1) -> PP-07 -> 4A platform up (confirmed at the rig) *)
 _IO_EM_DO_07 := OUT_LiftDown;        (* -> SOL-08 (4S2) -> PP-08 -> 4A platform down *)

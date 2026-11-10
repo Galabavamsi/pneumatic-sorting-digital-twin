@@ -1,10 +1,11 @@
 name,scope,data_type,initial_value,modbus_address,comment
 CFG_UseReeds,Global,BOOL,TRUE,,TRUE = wait for reed switches; FALSE = timed moves (CFG_TravelTime)
-CFG_UseMagSensor,Global,BOOL,TRUE,,TRUE = BPRS-620 fibre amp on DI-6; FALSE = infer empty when no part reaches IS/CS
-CFG_MetalToUpper,Global,BOOL,TRUE,,TRUE = metal -> 2A upper ejector / plastic -> 3A lower; FALSE swaps
-CFG_EStopFitted,Global,BOOL,TRUE,,FALSE only for bench tests with no E-stop patched (unsafe)
-CFG_EStopNC,Global,BOOL,TRUE,,TRUE = E-stop contact on DI-3 is NC (ON when healthy)
-CFG_TravelTime,Global,TIME,T#1500ms,,Timed-move mode: coil hold time that counts as end of stroke
+CFG_UseMagSensor,Global,BOOL,TRUE,,TRUE = BTS-01 magazine sensor on DI-8; FALSE = infer empty when no part reaches IS/CS
+CFG_MetalToUpper,Global,BOOL,FALSE,,FALSE (this rig) = plastic -> 2A at the upper level -> Tray 2 / metal -> lift down -> 3A -> Tray 1; TRUE swaps
+CFG_LiftSensors,Global,BOOL,FALSE,,FALSE (this rig) = 4A has no position sensors so the lift is timed (CFG_TravelTime); TRUE = sensors on DI-14/DI-15
+CFG_EStopFitted,Global,BOOL,TRUE,,FALSE only for bench tests with no E-stop patched to DI-12 (unsafe)
+CFG_EStopNC,Global,BOOL,TRUE,,TRUE = E-stop contact on DI-12 is NC (ON when healthy)
+CFG_TravelTime,Global,TIME,T#1s,,Timed moves (always used for the 4A lift): coil hold time that counts as end of stroke. Lift measured just under 1 s
 CFG_MoveTimeout,Global,TIME,T#3s,,Reed mode: fault if a move takes longer
 CFG_HomeTimeout,Global,TIME,T#6s,,Fault if homing takes longer
 CFG_DetectSettle,Global,TIME,T#300ms,,Wait after feed retract before reading IS-01/CS-01
@@ -16,8 +17,8 @@ IN_MagazineEmpty,Global,BOOL,,000002,Logical input
 IN_PartOnLift,Global,BOOL,,000003,Logical input (IS-01 OR CS-01)
 IN_Inductive,Global,BOOL,,000004,IS-01 metal
 IN_Capacitive,Global,BOOL,,000005,CS-01 any part
-IN_LiftUp,Global,BOOL,,000006,4A platform up
-IN_LiftDown,Global,BOOL,,000007,4A platform down
+IN_LiftUp,Global,BOOL,,000006,4A platform up (inferred by timer on this rig)
+IN_LiftDown,Global,BOOL,,000007,4A platform down (inferred by timer on this rig)
 IN_FeedExtended,Global,BOOL,,000008,1A extended
 IN_FeedRetracted,Global,BOOL,,000009,1A retracted
 IN_LowerEjExtended,Global,BOOL,,000010,3A extended
@@ -29,8 +30,8 @@ IN_StartPB,Global,BOOL,,000015,Green PB
 IN_StopPB,Global,BOOL,,000016,Red PB
 OUT_FeedExtend,Global,BOOL,,000017,-> DO-0 -> SOL-01
 OUT_FeedRetract,Global,BOOL,,000018,-> DO-1 -> SOL-02
-OUT_LowerEjExtend,Global,BOOL,,000019,-> DO-4 -> SOL-05
-OUT_LowerEjRetract,Global,BOOL,,000020,-> DO-5 -> SOL-06
+OUT_LowerEjExtend,Global,BOOL,,000019,-> DO-5 -> SOL-06
+OUT_LowerEjRetract,Global,BOOL,,000020,-> DO-4 -> SOL-05
 OUT_UpperEjExtend,Global,BOOL,,000021,-> DO-2 -> SOL-03
 OUT_UpperEjRetract,Global,BOOL,,000022,-> DO-3 -> SOL-04
 OUT_LiftUp,Global,BOOL,,000023,-> DO-6 -> SOL-07
@@ -78,6 +79,8 @@ detected,Local,BOOL,FALSE,,
 hbPulse,Local,BOOL,FALSE,,
 stepChanged,Local,BOOL,FALSE,,
 allRetracted,Local,BOOL,FALSE,,
+liftAtUp,Local,BOOL,FALSE,,Inferred lift position (no sensors on 4A)
+liftAtDown,Local,BOOL,FALSE,,
 stepPrev,Local,INT,0,,
 cycleMs,Local,DINT,0,,
 tvFeedExt,Local,TON,,,Timed-move position timers

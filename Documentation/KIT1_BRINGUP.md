@@ -11,6 +11,35 @@ Everything below is in this repo:
 
 Take a printout of [`PLC/Kit1/Kit1_IO_Allocation.csv`](../PLC/Kit1/Kit1_IO_Allocation.csv) to the rig.
 
+## As found at the rig on 2026-11-10
+
+The sections below were written before the rig was wired. Where they differ, this section and
+`Kit1_IO_Allocation.csv` are correct.
+
+| Item | Finding |
+|---|---|
+| PLC | `2080-L50E-48QBB`, CCW controller project version 22 |
+| PLC address | `169.254.226.108` over Ethernet. This is an automatic link-local address and can change after a power cycle: set a static one before using the twin link |
+| Previous PLC program | Not backed up. An empty project was downloaded over it |
+| Inputs wired | `DI-0`/`DI-1` 1A retracted/extended, `DI-2`/`DI-3` 2A retracted/extended, `DI-4`/`DI-5` 3A retracted/extended, `DI-6` CS-01, `DI-7` IS-01, `DI-8` BTS-01. Confirmed by the PLC input lights: 0, 2 and 4 are on with all three cylinders pulled in. The handwritten sheet has 1A and 2A the wrong way round |
+| Outputs and operator devices | Patched: `DO-0`…`DO-7` to `SOL-01`…`SOL-08` in order; green `DI-9`, red `DI-10`, black `DI-11`, E-stop `DI-12`, selector `DI-13`. Each device has one lead in the channel's 24V jack and one in the DI jack |
+| Valve directions | Checked at the rig with a 24V lead on each coil: `SOL-01` extends 1A, `SOL-03` extends 2A, `SOL-05` **retracts** 3A (the other way round), `SOL-07` raises the lift |
+| 4A lift | No position sensors. The PLC times it (`CFG_LiftSensors = FALSE`, `CFG_TravelTime` = 1 s). Measured travel is just under 1 s |
+| CS-01 | OFF with nothing in front of it (checked) |
+| Magazine sensor | Labelled `BTS-01`, a light sensor at the magazine base. ON while any part is in the magazine |
+| Material sensors | Metal lights IS-01 and CS-01; plastic lights CS-01 only (photographed) |
+| Levels | The raised platform, 1A, 2A and both material sensors are at one level. 2A is the upper ejector, 3A the lower |
+| Routing | Plastic → 2A → Tray 2. Metal → lift down → 3A → Tray 1 (`CFG_MetalToUpper = FALSE`) |
+| Solenoid labels | `SOL-01 (1S1)` on the rear panel is the air port `PP-01`: it is pressurised while coil `SOL-01` is on. The coil itself is the `SOL-01` jack on the front panel |
+| `SOL (0V)` | Patched to 0 V |
+
+Inputs and coil directions are now all checked by hand. Not yet done: building the program in
+CCW and the first homing.
+
+The offline twin sequence (`Kit1AutomaticSequence`) still sends metal to the upper ejector.
+The live mirror follows the PLC, so it is unaffected; the offline routing is the opposite of
+the rig until it is changed.
+
 ## Rig to twin naming
 
 | Rig | Part | Role | PLC tags | Twin script |
@@ -21,13 +50,13 @@ Take a printout of [`PLC/Kit1/Kit1_IO_Allocation.csv`](../PLC/Kit1/Kit1_IO_Alloc
 | 4A | Festo ADNGF-16-30-P-A (554217), vertical, guided | Lift | `OUT_Lift*` | `LiftCylinderTest` |
 | IS-01 | inductive, PNP NO | Metal | `IN_Inductive` | `DI_MetalDetected` |
 | CS-01 | capacitive BTH BCR12-PN6, PNP NO | Any part | `IN_Capacitive` | `DI_PlasticDetected` = CS and not IS |
-| BPRS-620 | fibre head at magazine base | Part present | `IN_MagazinePartPresent` | `DI_MagazinePartPresent` |
+| BTS-01 | light sensor at magazine base | Part present | `IN_MagazinePartPresent` | `DI_MagazinePartPresent` |
 
 The twin's Cylinder 2/3 numbering is the reverse of the rig's 2A/3A. The Modbus map
 uses functional names (upper/lower), so nothing breaks, but say "upper/lower" at the rig.
 
-The 2A/3A to upper/lower assignment comes from the photos (2A on top of the frame, 3A
-under the feed plate). Confirm it on the machine before tubing.
+The 2A/3A to upper/lower assignment was confirmed at the rig on 2026-11-10 (2A level with the
+sensors and the raised platform, 3A below).
 
 ## 0. Before you go to the rig
 
@@ -49,7 +78,7 @@ under the feed plate). Confirm it on the machine before tubing.
       that is already moving, it finishes its stroke. The PLC's E-stop handling only stops
       new commands. Keep a hand on the PRESSURE ON/OFF valve for the first runs.
 - [ ] Find out what the panel E-stop does. If it only has two contact jacks (as the photos
-      suggest), it does nothing until patched to DI-3, and even then it cannot dump air.
+      suggest), it does nothing until patched to DI-12, and even then it cannot dump air.
 - [ ] Do not touch the CONVEYOR CONTROL U/V/W jacks. They may carry VFD motor voltage,
       and Kit 1 does not use them.
 - [ ] Hands clear of 2A/3A/4A whenever air is on.
@@ -92,24 +121,24 @@ Follow `Kit1_IO_Allocation.csv`. Panel power stays off while patching.
 - [ ] Sensors: `<TAG> (24V)` into that DI channel's 24V jack, `<TAG> (0V)` into its 0V jack,
       `<TAG> (OUT)` into the DI jack itself.
 - [ ] Push buttons, selector and E-stop: one jack to the DI channel's 24V jack, the other to
-      the DI jack. Use the E-stop's **NC** contact (DI-3 ON when released).
+      the DI jack. Use the E-stop's **NC** contact (DI-12 ON when released).
 - [ ] DO-0…DO-7 to SOL-01…SOL-08. Check whether SOL (0V) needs a lead to 0V.
 - [ ] Panel on. Walk every input and tick it off by watching the PLC input LED:
 
 | DI | Device | Action | LED OK |
 |---|---|---|---|
-| 0 | Green PB | press | ☐ |
-| 1 | Red PB | press | ☐ |
-| 2 | Black PB | press | ☐ |
-| 3 | E-stop | ON when released, OFF when pressed | ☐ |
-| 4 | IS-01 | metal part in front, ON; plastic, OFF | ☐ |
-| 5 | CS-01 | metal ON, plastic ON (adjust the pot) | ☐ |
-| 6 | Fibre amp | part at magazine base | ☐ |
-| 7 | Selector | ON in "continuous" | ☐ |
-| 8/9 | 1A reeds | retracted / extended | ☐ |
-| 10/11 | 2A reeds | retracted / extended | ☐ |
-| 12/13 | 3A reeds | retracted / extended | ☐ |
-| 14/15 | 4A sensors | down / up | ☐ |
+| 0/1 | 1A reeds | extended / retracted | ☐ |
+| 2/3 | 2A reeds | extended / retracted | ☐ |
+| 4/5 | 3A reeds | retracted / extended | ☐ |
+| 6 | CS-01 | metal ON, plastic ON (adjust the pot) | ☐ |
+| 7 | IS-01 | metal part in front, ON; plastic, OFF | ☐ |
+| 8 | BTS-01 | part at magazine base | ☐ |
+| 9 | Green PB | press | ☐ |
+| 10 | Red PB | press | ☐ |
+| 11 | Black PB | press | ☐ |
+| 12 | E-stop | ON when released, OFF when pressed | ☐ |
+| 13 | Selector | ON in "continuous" | ☐ |
+| 14/15 | spare | 4A has no sensors | n/a |
 
 ## 5. Download and first runs
 
@@ -118,8 +147,8 @@ Follow `Kit1_IO_Allocation.csv`. Panel power stays off while patching.
 - [ ] Output check, one at a time: with the PLC in Run and Idle, force each DO in CCW
       and confirm the cylinder and direction. Then remove all forces.
 - [ ] Selector OFF (single cycle). One **metal** part in the magazine, press green.
-      Expected: home, feed, detect, upper ejector (2A), metal tray.
-- [ ] One **plastic** part. Expected: feed, detect, lift down, lower ejector (3A), lift up.
+      Expected: home, feed, detect, lift down, lower ejector (3A), Tray 1, lift up.
+- [ ] One **plastic** part. Expected: feed, detect, upper ejector (2A), Tray 2.
 - [ ] Selector ON, mixed batch of 6–8 parts. Counts in `HR_MetalCount` / `HR_PlasticCount`
       should match the trays.
 - [ ] Test red PB mid-batch (finishes the part, homes), red PB right after green (cancels
@@ -129,11 +158,11 @@ Follow `Kit1_IO_Allocation.csv`. Panel power stays off while patching.
 
 | Fault | Meaning | Usual cause |
 |---|---|---|
-| 1 | E-stop | E-stop pressed, or DI-3 not patched / NO contact (`CFG_EStopNC`) |
+| 1 | E-stop | E-stop pressed, or DI-12 not patched / NO contact (`CFG_EStopNC`) |
 | 2 / 3 | Feed extend / retract timeout | 1A reed not reaching, flow control too closed, tubing swapped |
 | 4 | Part fed but IS/CS saw nothing | Sensors too far from the part, CS-01 pot, magazine sensor false ON |
 | 5 | Upper ejector timeout | 2A reeds or tubing |
-| 6 / 8 | Lift down / up timeout | 4A sensors or PP-07/08 swapped |
+| 6 / 8 | Lift down / up timeout | Only with `CFG_LiftSensors = TRUE`; the timed lift cannot raise these |
 | 7 | Lower ejector timeout | 3A reeds or tubing |
 | 9 | Homing timeout | Any axis not reaching home, or a reed missing |
 

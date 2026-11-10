@@ -74,6 +74,7 @@ namespace Kit1PlcSimulator
         public readonly List<string> Violations = new List<string>();
 
         public bool ReedsFitted = true;
+        public bool LiftSensorsFitted;      // the real rig has none on 4A
         public bool AirOn = true;
         public bool EStopPressed;
         public bool ContinuousSelector = true;
@@ -118,9 +119,10 @@ namespace Kit1PlcSimulator
             bool liftWasUp = Lift.Extended;
             bool liftWasDown = Lift.Retracted;
 
+            // Arguments are (extend coil, retract coil). On the rig 3A is the other way round: SOL-06 extends it.
             Feed.Update(outputs[0], outputs[1], AirOn, dtMs, Violations);
             UpperEjector.Update(outputs[2], outputs[3], AirOn, dtMs, Violations);
-            LowerEjector.Update(outputs[4], outputs[5], AirOn, dtMs, Violations);
+            LowerEjector.Update(outputs[5], outputs[4], AirOn, dtMs, Violations);
             Lift.Update(outputs[6], outputs[7], AirOn, dtMs, Violations);
 
             if (Lift.Moving && (UpperEjector.Position > 0.1 || LowerEjector.Position > 0.1))
@@ -190,22 +192,22 @@ namespace Kit1PlcSimulator
         public void WriteInputs(bool[] di)
         {
             bool atUpper = Lift.Extended;
-            di[0] = startPressMs > 0;
-            di[1] = stopPressMs > 0;
-            di[2] = resetPressMs > 0;
-            di[3] = !EStopPressed;   // NC contact
-            di[4] = atUpper && onPlatform == Material.Metal;
-            di[5] = atUpper && onPlatform.HasValue;   // capacitive sees metal too
-            di[6] = slotOccupied;
-            di[7] = ContinuousSelector;
-            di[8] = ReedsFitted && Feed.Retracted;
-            di[9] = ReedsFitted && Feed.Extended;
-            di[10] = ReedsFitted && UpperEjector.Retracted;
-            di[11] = ReedsFitted && UpperEjector.Extended;
-            di[12] = ReedsFitted && LowerEjector.Retracted;
-            di[13] = ReedsFitted && LowerEjector.Extended;
-            di[14] = ReedsFitted && Lift.Retracted;
-            di[15] = ReedsFitted && Lift.Extended;
+            di[0] = ReedsFitted && Feed.Retracted;
+            di[1] = ReedsFitted && Feed.Extended;
+            di[2] = ReedsFitted && UpperEjector.Retracted;
+            di[3] = ReedsFitted && UpperEjector.Extended;
+            di[4] = ReedsFitted && LowerEjector.Retracted;
+            di[5] = ReedsFitted && LowerEjector.Extended;
+            di[6] = atUpper && onPlatform.HasValue;   // capacitive sees metal too
+            di[7] = atUpper && onPlatform == Material.Metal;
+            di[8] = slotOccupied;
+            di[9] = startPressMs > 0;
+            di[10] = stopPressMs > 0;
+            di[11] = resetPressMs > 0;
+            di[12] = !EStopPressed;   // NC contact
+            di[13] = ContinuousSelector;
+            di[14] = ReedsFitted && LiftSensorsFitted && Lift.Retracted;
+            di[15] = ReedsFitted && LiftSensorsFitted && Lift.Extended;
         }
     }
 }

@@ -251,13 +251,21 @@ See [Architecture](Documentation/ARCHITECTURE.md) for component responsibilities
 
 Kits 1, 2, and 3 are complete offline simulations and PLC-ready software prototypes. Their project validators and Play-mode acceptance checklists pass.
 
-The project does **not** yet connect to physical hardware. Logical tag names intentionally remain independent of controller addresses until the PLC model, program, network, and wiring map are confirmed.
+Kits 2 and 3 do not connect to physical hardware. Their logical tag names remain independent of controller addresses.
 
 ### Kit 1 hardware link (in bring-up)
 
-The physical trainer is a Gravitaz MATK-R5M with an Allen-Bradley Micro850. Kit 1 bring-up material:
+The physical trainer is a Gravitaz MATK-R5M with an Allen-Bradley Micro850 (`2080-L50E-48QBB`). Status on 2026-11-10:
+
+- **Done:** Kit 1 is wired and patched, and every input and solenoid direction has been checked by hand at the rig. The PLC program, patch list and soft PLC match that wiring, and the soft PLC's `selftest` and `linktest` pass.
+- **Not done yet:** the program has not been built in Connected Components Workbench or run on the machine, and the twin has not been connected to the real PLC.
+
+On the rig, plastic leaves at the upper level (cylinder 2A, Tray 2) and metal at the lower level (lift down, cylinder 3A, Tray 1). The offline Kit 1 simulation still routes them the other way round; the live mirror follows the PLC.
+
+Kit 1 bring-up material:
 
 - [`PLC/Kit1`](PLC/Kit1/README.md): Micro850 Structured Text sorting program, variable list, patch-panel allocation, and Modbus TCP map.
+- [`PLC/Kit1/CCW_SETUP.md`](PLC/Kit1/CCW_SETUP.md): click-by-click build, download and first run in Connected Components Workbench.
 - `Assets/Scripts/Runtime/PlcLink`: read-only Modbus TCP live link. Press **F8** in `Kit1Viewer` to make the twin mirror the PLC; configure the address in `Assets/StreamingAssets/Kit1PlcLink.json` or with `-plcHost <ip>`.
 - `Tools/Kit1PlcSimulator`: soft PLC running a C# port of the program against a simulated Kit 1. It provides `selftest`, `linktest` and `serve --demo` modes for rehearsing without the rig.
 - [Kit 1 bring-up checklist](Documentation/KIT1_BRINGUP.md) and [hardware integration notes](Documentation/HARDWARE_INTEGRATION.md).

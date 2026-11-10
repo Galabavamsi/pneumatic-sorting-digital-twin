@@ -53,10 +53,11 @@ namespace Kit1PlcSimulator
         // Config (CCW initial values).
         public bool CFG_UseReeds = true;
         public bool CFG_UseMagSensor = true;
-        public bool CFG_MetalToUpper = true;
+        public bool CFG_MetalToUpper = false;
+        public bool CFG_LiftSensors = false;
         public bool CFG_EStopFitted = true;
         public bool CFG_EStopNC = true;
-        public long CFG_TravelTime = 1500;
+        public long CFG_TravelTime = 1000;
         public long CFG_MoveTimeout = 3000;
         public long CFG_HomeTimeout = 6000;
         public long CFG_DetectSettle = 300;
@@ -87,7 +88,7 @@ namespace Kit1PlcSimulator
         private bool rawLowerRet, rawLowerExt, rawLiftDown, rawLiftUp;
         private bool outEnable, liftHold, cmdFeedExt, cmdUpperExt, cmdLowerExt, cmdLiftUp = true;
         private bool wantAuto, stopRequest, cycleActive, magEmptyLatched, routeUpper, detected;
-        private bool hbPulse, stepChanged, allRetracted;
+        private bool hbPulse, stepChanged, allRetracted, liftAtUp, liftAtDown;
         private int stepPrev;
         private long cycleMs;
         private readonly Ton tvFeedExt = new Ton(), tvFeedRet = new Ton(), tvUpperExt = new Ton();
@@ -101,20 +102,20 @@ namespace Kit1PlcSimulator
         public void Scan(long now)
         {
             // 1. Physical -> logical inputs.
-            IN_StartPB = DI[0];
-            IN_StopPB = DI[1];
-            IN_ResetPB = DI[2];
-            rawEStop = DI[3];
-            IN_Inductive = DI[4];
-            IN_Capacitive = DI[5];
-            rawMagPart = DI[6];
-            IN_ContinuousMode = DI[7];
-            rawFeedRet = DI[8];
-            rawFeedExt = DI[9];
-            rawUpperRet = DI[10];
-            rawUpperExt = DI[11];
-            rawLowerRet = DI[12];
-            rawLowerExt = DI[13];
+            rawFeedRet = DI[0];
+            rawFeedExt = DI[1];
+            rawUpperRet = DI[2];
+            rawUpperExt = DI[3];
+            rawLowerRet = DI[4];
+            rawLowerExt = DI[5];
+            IN_Capacitive = DI[6];
+            IN_Inductive = DI[7];
+            rawMagPart = DI[8];
+            IN_StartPB = DI[9];
+            IN_StopPB = DI[10];
+            IN_ResetPB = DI[11];
+            rawEStop = DI[12];
+            IN_ContinuousMode = DI[13];
             rawLiftDown = DI[14];
             rawLiftUp = DI[15];
 
@@ -148,8 +149,6 @@ namespace Kit1PlcSimulator
                 IN_UpperEjRetracted = rawUpperRet;
                 IN_LowerEjExtended = rawLowerExt;
                 IN_LowerEjRetracted = rawLowerRet;
-                IN_LiftUp = rawLiftUp;
-                IN_LiftDown = rawLiftDown;
             }
             else
             {
@@ -159,8 +158,29 @@ namespace Kit1PlcSimulator
                 IN_UpperEjRetracted = tvUpperRet.Q;
                 IN_LowerEjExtended = tvLowerExt.Q;
                 IN_LowerEjRetracted = tvLowerRet.Q;
-                IN_LiftUp = tvLiftUp.Q;
-                IN_LiftDown = tvLiftDown.Q;
+            }
+
+            // Lift position without sensors: timed, then remembered while the coils are off.
+            if (OUT_LiftUp)
+            {
+                liftAtDown = false;
+                liftAtUp = tvLiftUp.Q;
+            }
+            else if (OUT_LiftDown)
+            {
+                liftAtUp = false;
+                liftAtDown = tvLiftDown.Q;
+            }
+
+            if (CFG_UseReeds && CFG_LiftSensors)
+            {
+                IN_LiftUp = rawLiftUp;
+                IN_LiftDown = rawLiftDown;
+            }
+            else
+            {
+                IN_LiftUp = liftAtUp;
+                IN_LiftDown = liftAtDown;
             }
 
             IN_PartOnLift = IN_Inductive || IN_Capacitive;
@@ -536,8 +556,8 @@ namespace Kit1PlcSimulator
             DO[1] = OUT_FeedRetract;
             DO[2] = OUT_UpperEjExtend;
             DO[3] = OUT_UpperEjRetract;
-            DO[4] = OUT_LowerEjExtend;
-            DO[5] = OUT_LowerEjRetract;
+            DO[4] = OUT_LowerEjRetract;
+            DO[5] = OUT_LowerEjExtend;
             DO[6] = OUT_LiftUp;
             DO[7] = OUT_LiftDown;
         }

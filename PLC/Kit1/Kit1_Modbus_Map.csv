@@ -17,8 +17,8 @@ modbus_address,pdu_offset,type,ccw_variable,access,meaning
 000016,15,coil,IN_StopPB,read,Stop button
 000017,16,coil,OUT_FeedExtend,read,Solenoid SOL-01
 000018,17,coil,OUT_FeedRetract,read,Solenoid SOL-02
-000019,18,coil,OUT_LowerEjExtend,read,Solenoid SOL-05
-000020,19,coil,OUT_LowerEjRetract,read,Solenoid SOL-06
+000019,18,coil,OUT_LowerEjExtend,read,Solenoid SOL-06
+000020,19,coil,OUT_LowerEjRetract,read,Solenoid SOL-05
 000021,20,coil,OUT_UpperEjExtend,read,Solenoid SOL-03
 000022,21,coil,OUT_UpperEjRetract,read,Solenoid SOL-04
 000023,22,coil,OUT_LiftUp,read,Solenoid SOL-07

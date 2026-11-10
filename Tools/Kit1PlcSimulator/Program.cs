@@ -47,17 +47,41 @@ namespace Kit1PlcSimulator
                 CheckBatch(rig, parts);
             });
 
-            Scenario("Metal routed to the lower tray when CFG_MetalToUpper = FALSE", () =>
+            Scenario("Metal routed to the upper tray when CFG_MetalToUpper = TRUE", () =>
             {
                 Kit1Rig rig = new Kit1Rig();
-                rig.Plc.CFG_MetalToUpper = false;
+                rig.Plc.CFG_MetalToUpper = true;
                 List<Material> parts = RandomParts(6, seed: 3);
                 rig.Plant.Load(parts);
                 rig.Plant.PressStart();
                 RunUntil(rig, r => r.Plc.HR_Step == 0 && r.Plc.HR_PartsDone > 0, 90000);
-                Expect(rig.Plant.LowerTray.All(m => m == Material.Metal), "lower tray holds only metal");
-                Expect(rig.Plant.UpperTray.All(m => m == Material.Plastic), "upper tray holds only plastic");
+                Expect(rig.Plant.UpperTray.All(m => m == Material.Metal), "upper tray holds only metal");
+                Expect(rig.Plant.LowerTray.All(m => m == Material.Plastic), "lower tray holds only plastic");
                 Expect(rig.Plant.Violations.Count == 0, Violations(rig));
+            });
+
+            Scenario("Lift sensors fitted (CFG_LiftSensors = TRUE): lift moves wait for the sensors", () =>
+            {
+                Kit1Rig rig = new Kit1Rig();
+                rig.Plant.LiftSensorsFitted = true;
+                rig.Plc.CFG_LiftSensors = true;
+                List<Material> parts = RandomParts(6, seed: 13);
+                rig.Plant.Load(parts);
+                rig.Plant.PressStart();
+                RunUntil(rig, r => r.Plc.HR_Step == 0 && r.Plc.HR_PartsDone > 0, 90000);
+                CheckBatch(rig, parts);
+            });
+
+            Scenario("No lift sensors, slow lift: timed moves sort the batch and Idle still reports homed", () =>
+            {
+                Kit1Rig rig = new Kit1Rig(travelMs: 900);   // slower than the other tests, still under the 1 s CFG_TravelTime
+                rig.Plant.Load(new[] { Material.Metal, Material.Plastic, Material.Metal });
+                rig.Plant.PressStart();
+                RunUntil(rig, r => r.Plc.HR_Step == 0 && r.Plc.HR_PartsDone == 3, 120000);
+                Expect(rig.Plc.HR_FaultCode == 0, $"no fault (got {rig.Plc.HR_FaultCode})");
+                Expect(rig.Plant.Violations.Count == 0, Violations(rig));
+                Run(rig, 5000);
+                Expect(rig.Plc.HR_Step == 0 && rig.Plc.ST_Homed, "still reports homed after 5 s in Idle");
             });
 
             Scenario("No reeds, no fibre sensor: timed moves and inferred magazine empty", () =>
@@ -244,10 +268,13 @@ namespace Kit1PlcSimulator
             Expect(rig.Plc.HR_PartsDone == parts.Count, $"parts done {rig.Plc.HR_PartsDone} == {parts.Count}");
             Expect(rig.Plc.HR_MetalCount == metal, $"metal count {rig.Plc.HR_MetalCount} == {metal}");
             Expect(rig.Plc.HR_PlasticCount == plastic, $"plastic count {rig.Plc.HR_PlasticCount} == {plastic}");
-            Expect(rig.Plant.UpperTray.Count == metal && rig.Plant.UpperTray.All(m => m == Material.Metal),
-                "upper tray holds every metal part and nothing else");
-            Expect(rig.Plant.LowerTray.Count == plastic && rig.Plant.LowerTray.All(m => m == Material.Plastic),
-                "lower tray holds every plastic part and nothing else");
+            // Rig default (CFG_MetalToUpper = FALSE): plastic leaves at the upper level, metal at the lower.
+            List<Material> metalTray = rig.Plc.CFG_MetalToUpper ? rig.Plant.UpperTray : rig.Plant.LowerTray;
+            List<Material> plasticTray = rig.Plc.CFG_MetalToUpper ? rig.Plant.LowerTray : rig.Plant.UpperTray;
+            Expect(metalTray.Count == metal && metalTray.All(m => m == Material.Metal),
+                "metal tray holds every metal part and nothing else");
+            Expect(plasticTray.Count == plastic && plasticTray.All(m => m == Material.Plastic),
+                "plastic tray holds every plastic part and nothing else");
             Expect(rig.Plc.HR_FaultCode == 0, $"no fault (got {rig.Plc.HR_FaultCode})");
             Expect(rig.Plc.ST_Homed, "ends homed");
             Expect(rig.Plc.HR_LastCycleMs > 0, $"cycle time recorded ({rig.Plc.HR_LastCycleMs} ms)");
