@@ -33,8 +33,27 @@ The sections below were written before the rig was wired. Where they differ, thi
 | Solenoid labels | `SOL-01 (1S1)` on the rear panel is the air port `PP-01`: it is pressurised while coil `SOL-01` is on. The coil itself is the `SOL-01` jack on the front panel |
 | `SOL (0V)` | Patched to 0 V |
 
-Inputs and coil directions are now all checked by hand. Not yet done: building the program in
-CCW and the first homing.
+Inputs and coil directions were all checked by hand.
+
+## First run on 2026-11-14
+
+Kit 1 sorts on the real rig. Four metal parts and one plastic part were sorted in single-cycle
+mode; a mixed batch in continuous mode had not been run when this was written.
+
+| Finding | Detail |
+|---|---|
+| **Output power** | The PLC's `DO` jacks deliver nothing until a lead joins a red `24V` jack to the red **`24VDC`** jack at the bottom of the DIGITAL OUTPUTS block. Without it the PLC's OUT lights come on but no valve moves, and the program stops on fault 2 (feed) or fault 9 (homing) |
+| Build | `Kit1_Sort.st` built in CCW 22 with 0 errors and 0 warnings, unchanged |
+| Variables | Created by pasting, not typing: `PLC/Kit1/Copy-CcwVariables.ps1` puts them on the clipboard in the XML layout the CCW variable grid copies and pastes |
+| Live values | `PLC/Kit1/Read-PlcVariables.ps1` reads the globals by name over EtherNet/IP (read-only, no CCW setup). CCW's variable grid does not copy while connected |
+| PLC address | Changes by itself: `169.254.226.108`, then `169.254.131.254`, then `169.254.177.240`, the last without a power cycle. CCW then reports "Connection failed": open the Connection Browser, expand `AB_ETHIP-1` and pick the line without a red X |
+| PC network | The PC has a second link-local adapter (Siemens PLCSIM virtual Ethernet). Connections to the PLC must leave by the real Ethernet adapter; the reader binds to it |
+| E-stop | Normally-closed contact confirmed: `DI-12` is on when released |
+| Valves at air-on | The valves are bistable, so cylinders jump to wherever they were last sent when the air comes on. Home with the black button afterwards |
+| Capacitive sensor | A fed plastic part first stopped beside `CS-01`, not in front of it, and the cycle stopped on fault 4. It was then lined up at the rig and plastic is seen. If it drifts again, fault 4 on plastic parts is the symptom |
+| Measured moves | 1A out 0.7 s, in 0.8 s. 2A out 1.9 s (slow, against a 3 s timeout), in 0.4 s. Lift timed at 1 s |
+
+Not done yet: a continuous batch, the static PLC address, and the twin link.
 
 The offline twin sequence (`Kit1AutomaticSequence`) still sends metal to the upper ejector.
 The live mirror follows the PLC, so it is unaffected; the offline routing is the opposite of
@@ -65,7 +84,9 @@ sensors and the raised platform, 3A below).
       opens to an empty station; the PLC side does not need them.
 - [ ] Decide which PC goes to the rig. Lab WS1 already has CCW, RSLinx, the 2080 USB
       driver, Unity 6000.6.0f1, the .NET SDK and this repo. Another PC needs all of those.
-- [ ] Rehearse the live link on the soft PLC:
+- [ ] Rehearse the live link on the soft PLC. The soft PLC speaks Modbus TCP, so first set
+      `"protocol": "modbus"` and `"host": "127.0.0.1"` in `Assets/StreamingAssets/Kit1PlcLink.json`
+      (and put them back to `"ethernetip"` / `"auto"` for the real rig). Then:
       `dotnet run -c Release --project Tools/Kit1PlcSimulator -- serve --demo --parts MPMPMPMP`, open
       `Kit1Viewer` in Unity, press Play, press **F8**. The badge at the bottom left turns
       **LIVE** and the station runs from the soft PLC. The Console logs
@@ -171,8 +192,11 @@ Missing a reed switch or the fibre amp on the day? Set `CFG_UseReeds := FALSE` (
 
 ## 6. Twin live link
 
-- [ ] Set the PLC's IP in `Assets/StreamingAssets/Kit1PlcLink.json` (`"host"`), or start a
-      built player with `-plcHost <ip>`.
+- [ ] Nothing to set up. `Assets/StreamingAssets/Kit1PlcLink.json` ships with
+      `"protocol": "ethernetip"` and `"host": "auto"`: the twin finds the Micro850 on the cable
+      and reads its variables by name, with no Modbus mapping and no fixed IP. (To use Modbus
+      TCP instead, set `"protocol": "modbus"`, give the PLC a static IP, put it in `"host"`,
+      and add the mapping from `Kit1_Modbus_Map.csv` in CCW.)
 - [ ] Open `Assets/Scenes/Kit1Viewer.unity`, press Play, press **F8**.
 - [ ] The badge at the bottom left should read **LIVE** with the PLC step and counts.
       **F1 → I/O** shows the real inputs and solenoids.

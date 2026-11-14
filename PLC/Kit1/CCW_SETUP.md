@@ -11,6 +11,9 @@ slightly in other versions.
 
 - Air **off** (PRESSURE OFF). It stays off until step 6.
 - Magazine empty, E-stop released.
+- **Output power lead in place:** one lead from a red `24V` jack to the red `24VDC` jack at the
+  bottom of the DIGITAL OUTPUTS block. Without it the PLC's OUT lights come on but no valve
+  moves (found on 2026-11-14).
 - In CCW click **Disconnect**. Variables and code are edited offline.
 
 ## 1. Create the global variables (55)
@@ -52,9 +55,23 @@ is listed. Names must match exactly; they are not case-sensitive.
 | `CFG_EmptyDebounce` | `T#2s` |
 | `CFG_FeedDelay` | `T#300ms` |
 
-CCW can also import variables from a file (right-click **Micro850** → Export / Import →
-Variables). The file layout has to match what your CCW version writes, so export once first and
-build the import file from that.
+**Faster: paste them.** The CCW variable grid copies and pastes rows as plain XML text, and
+`Copy-CcwVariables.ps1` puts the whole list on the clipboard in that layout (this is how the
+variables were created on 2026-11-14). In PowerShell, from `PLC/Kit1`:
+
+```powershell
+.\Copy-CcwVariables.ps1 -Scope Global
+```
+
+Then click the grey box at the left of the empty bottom row of the Global Variables grid and
+press Ctrl+V. For the locals in step 2, create the program first, then:
+
+```powershell
+.\Copy-CcwVariables.ps1 -Scope Local -FullNamePrefix 'Controller.Micro850.Micro850.Kit1_Sort'
+```
+
+Use `-Exclude name1,name2` to leave out variables that already exist. The grid only copies and
+pastes while CCW is disconnected.
 
 ## 2. Create the program and its local variables (44)
 
@@ -102,7 +119,9 @@ Do not download until the build shows 0 errors.
 
 ## 4. Download
 
-1. Click **Connect**, then **Download**.
+1. Click **Download**. If CCW says "Connection failed", the PLC has given itself a new
+   `169.254.x.x` address: in the Connection Browser expand `AB_ETHIP-1` and pick the Micro850
+   line without a red X.
 2. CCW asks to put the controller in Program mode: accept.
 3. When it finishes it asks "Change the controller to Remote Run?": answer **Yes**.
 
@@ -113,6 +132,14 @@ Start or Reset.
 
 While connected, the Global Variables grid shows live values in the **Logical Value** column.
 A BOOL can be written by ticking its box there.
+
+`Read-PlcVariables.ps1` shows the same values without CCW. It finds the PLC by itself and only
+reads:
+
+```powershell
+.\Read-PlcVariables.ps1              # status summary
+.\Read-PlcVariables.ps1 -Watch 60    # print every change for 60 seconds
+```
 
 Check, in this order:
 
@@ -166,11 +193,16 @@ for 2 s, then homes and stops. Red finishes the current part and stops.
 
 ## 9. After it sorts reliably
 
-1. Give the PLC a static IP (Micro850 → Ethernet → Internet Protocol), for example
-   `192.168.1.10 / 255.255.255.0`, and put the PC's port on the same subnet. The current
-   `169.254.x.x` address can change after a power cycle.
-2. Add the Modbus mapping from `Kit1_Modbus_Map.csv` (Micro850 → Modbus Mapping) and enable the
-   Modbus TCP server if your firmware has a switch for it.
-3. Set that IP in `Assets/StreamingAssets/Kit1PlcLink.json`, open `Kit1Viewer` in Unity, press
-   Play, then **F8**. The twin mirrors the machine (checklist section 6 in
-   `Documentation/KIT1_BRINGUP.md`).
+Nothing more is needed in CCW. Open `Kit1Viewer` in Unity, press Play, then **F8**. The twin
+finds the PLC on the cable, reads its variables by name over EtherNet/IP and mirrors the
+machine (checklist section 6 in `Documentation/KIT1_BRINGUP.md`). It only reads.
+
+To check the link without Unity, from `Tools/Kit1PlcSimulator`:
+
+```bash
+dotnet run -c Release -- plcread
+```
+
+Optional, only if you want Modbus TCP instead: give the PLC a static IP, add the mapping from
+`Kit1_Modbus_Map.csv` (Micro850 → Modbus Mapping), enable the Modbus TCP server, and set
+`"protocol": "modbus"` and the IP in `Assets/StreamingAssets/Kit1PlcLink.json`.

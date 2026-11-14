@@ -20,18 +20,35 @@ namespace Kit1DigitalTwin.PlcLink
     [Serializable]
     public sealed class Kit1PlcLinkConfig
     {
+        public const string ProtocolModbus = "modbus";
+        public const string ProtocolEtherNetIp = "ethernetip";
+
         public bool enabledOnStart;
+        // "ethernetip": read the Micro850's variables by name (nothing to set up in the
+        // controller; host "auto" finds it). "modbus": Modbus TCP, which needs the mapping
+        // table in the controller project and is what the soft PLC serves.
+        public string protocol = ProtocolModbus;
         public string host = "127.0.0.1";
-        public int port = 502;
-        public int unitId = 1;
+        public int port = 502;          // Modbus only
+        public int unitId = 1;          // Modbus only
         public int pollHz = 20;
         public int staleAfterMs = 1000;
         public int timeoutMs = 1000;
 
+        public bool UsesEtherNetIp =>
+            string.Equals(protocol?.Trim(), ProtocolEtherNetIp, StringComparison.OrdinalIgnoreCase);
+
         // Returns null when the settings are usable, otherwise what is wrong.
         public string Validate()
         {
-            if (string.IsNullOrWhiteSpace(host))
+            bool modbus = string.Equals(protocol?.Trim(), ProtocolModbus, StringComparison.OrdinalIgnoreCase);
+            if (!modbus && !UsesEtherNetIp)
+            {
+                return $"protocol '{protocol}' is not \"{ProtocolModbus}\" or \"{ProtocolEtherNetIp}\"";
+            }
+
+            // EtherNet/IP may leave the host empty or "auto" to search for the controller.
+            if (modbus && string.IsNullOrWhiteSpace(host))
             {
                 return "host is empty";
             }
@@ -65,7 +82,8 @@ namespace Kit1DigitalTwin.PlcLink
         }
     }
 
-    // Read-only Modbus TCP link from the Micro850 to the Kit 1 twin.
+    // Read-only link from the Micro850 to the Kit 1 twin, over EtherNet/IP (variables
+    // read by name) or Modbus TCP (see Kit1PlcLinkConfig.protocol).
     //
     // While the link is ON the PLC is master: Kit1PlcIo takes its DI/DO from the
     // latest snapshot, the twin's own automatic sequence and manual keys are
@@ -74,7 +92,8 @@ namespace Kit1DigitalTwin.PlcLink
     // simulation exactly as before.
     //
     // Config: Assets/StreamingAssets/Kit1PlcLink.json, overridable on the command
-    // line with -plcHost <ip> -plcPort <n> -plcLive. F8 toggles the link at runtime.
+    // line with -plcHost <ip|auto> -plcPort <n> -plcProtocol <modbus|ethernetip> -plcLive.
+    // F8 toggles the link at runtime.
     public sealed class Kit1PlcLink : MonoBehaviour
     {
         private const string ConfigFileName = "Kit1PlcLink.json";
@@ -84,9 +103,21 @@ namespace Kit1DigitalTwin.PlcLink
         private sealed class PollWorker
         {
             public volatile bool Run = true;
-            public ModbusTcpClient Client;   // guarded by lock (this)
+            public IKit1PlcReader Client;    // guarded by lock (this)
             public Thread Thread;
         }
+
+        private IKit1PlcReader CreateReader()
+        {
+            return config.UsesEtherNetIp
+                ? (IKit1PlcReader)new Kit1EipReader(config.host, config.timeoutMs)
+                : new Kit1ModbusReader(config.host, config.port, (byte)config.unitId, config.timeoutMs);
+        }
+
+        private string TargetText =>
+            config.UsesEtherNetIp
+                ? $"{(Micro800EipClient.IsAuto(config.host) ? "auto" : config.host)} (EtherNet/IP)"
+                : $"{config.host}:{config.port} (Modbus TCP, unit {config.unitId})";
 
         private readonly object sync = new object();
         private Kit1PlcLinkConfig config = new Kit1PlcLinkConfig();
@@ -97,6 +128,7 @@ namespace Kit1DigitalTwin.PlcLink
         private long lastBeatChangeTicks;
         private ushort lastBeat;
         private string lastError = string.Empty;
+        private string liveEndpoint = string.Empty;   // where the data is coming from; guarded by sync
         private volatile Kit1PlcLinkState workerState = Kit1PlcLinkState.Offline;
         private int pollCount;
         private GUIStyle badgeStyle;
@@ -223,6 +255,7 @@ namespace Kit1DigitalTwin.PlcLink
             {
                 latest = null;
                 lastError = string.Empty;
+                liveEndpoint = string.Empty;
                 pollCount = 0;
                 current = worker;
             }
@@ -230,8 +263,7 @@ namespace Kit1DigitalTwin.PlcLink
             linkOn = true;
             workerState = Kit1PlcLinkState.Connecting;
             worker.Thread.Start();
-            Debug.Log($"Kit 1 PLC link ON: polling {config.host}:{config.port} (unit {config.unitId}) " +
-                $"at {config.pollHz} Hz, read-only.");
+            Debug.Log($"Kit 1 PLC link ON: polling {TargetText} at {config.pollHz} Hz, read-only.");
         }
 
         public void StopLink()
@@ -293,7 +325,7 @@ namespace Kit1DigitalTwin.PlcLink
         private void PollLoop(PollWorker worker)
         {
             int periodMs = Mathf.Max(10, 1000 / Mathf.Max(1, config.pollHz));
-            ModbusTcpClient client = null;   // the client this thread is using; disposed on exit
+            IKit1PlcReader client = null;    // the reader this thread is using; disposed on exit
             try
             {
                 while (worker.Run)
@@ -311,8 +343,7 @@ namespace Kit1DigitalTwin.PlcLink
                             if (worker.Client == null || !worker.Client.Connected)
                             {
                                 worker.Client?.Dispose();
-                                worker.Client = new ModbusTcpClient(
-                                    config.host, config.port, (byte)config.unitId, config.timeoutMs);
+                                worker.Client = CreateReader();
                             }
 
                             client = worker.Client;
@@ -330,18 +361,17 @@ namespace Kit1DigitalTwin.PlcLink
                             }
                         }
 
-                        bool[] coils = client.ReadCoils(Kit1ModbusMap.CoilStart, Kit1ModbusMap.CoilCount);
-                        ushort[] registers = client.ReadHoldingRegisters(
-                            Kit1ModbusMap.RegisterStart, Kit1ModbusMap.RegisterCount);
+                        client.Read(out bool[] coils, out ushort[] registers);
                         Kit1PlcSnapshot snapshot = Kit1PlcSnapshot.Decode(coils, registers, DateTime.UtcNow);
 
                         if (snapshot.MapVersion != Kit1ModbusMap.MapVersion)
                         {
                             throw new ModbusException(
                                 $"PLC map version {snapshot.MapVersion}, twin expects {Kit1ModbusMap.MapVersion}. " +
-                                "Check the Modbus mapping in CCW.");
+                                "Check the PLC program (and, for Modbus, the mapping in CCW).");
                         }
 
+                        string endpoint = client.Endpoint;
                         long now = Stopwatch.GetTimestamp();
                         lock (sync)
                         {
@@ -360,11 +390,12 @@ namespace Kit1DigitalTwin.PlcLink
                             latestReceivedTicks = now;
                             pollCount++;
                             lastError = string.Empty;
+                            liveEndpoint = endpoint;
                         }
 
                         if (workerState != Kit1PlcLinkState.Live)
                         {
-                            Debug.Log($"Kit 1 PLC link LIVE: {config.host}:{config.port}, map v{snapshot.MapVersion}, " +
+                            Debug.Log($"Kit 1 PLC link LIVE: {endpoint}, map v{snapshot.MapVersion}, " +
                                 $"PLC step {snapshot.Step}, parts done {snapshot.PartsCompleted}.");
                         }
 
@@ -393,7 +424,7 @@ namespace Kit1DigitalTwin.PlcLink
 
                         if (firstError)
                         {
-                            Debug.LogWarning($"Kit 1 PLC link error ({config.host}:{config.port}): " +
+                            Debug.LogWarning($"Kit 1 PLC link error ({TargetText}): " +
                                 $"{exception.GetType().Name}: {exception.Message} Retrying every second.");
                         }
 
@@ -479,6 +510,10 @@ namespace Kit1DigitalTwin.PlcLink
                         Debug.LogError($"-plcPort '{args[index + 1]}' is not a number; keeping port {config.port}.");
                     }
                 }
+                else if (args[index] == "-plcProtocol" && index + 1 < args.Length)
+                {
+                    config.protocol = args[index + 1];   // checked by Validate() in StartLink
+                }
                 else if (args[index] == "-plcLive")
                 {
                     config.enabledOnStart = true;
@@ -512,8 +547,14 @@ namespace Kit1DigitalTwin.PlcLink
                 _ => "#9aa4ae"
             };
 
+            string endpoint;
+            lock (sync)
+            {
+                endpoint = string.IsNullOrEmpty(liveEndpoint) ? TargetText : liveEndpoint;
+            }
+
             string text = $"<b>PLC LINK</b> <color={colour}>{state.ToString().ToUpperInvariant()}</color>  " +
-                $"{config.host}:{config.port}  <color=#9aa4ae>F8 {(linkOn ? "off" : "on")}</color>";
+                $"{endpoint}  <color=#9aa4ae>F8 {(linkOn ? "off" : "on")}</color>";
 
             Kit1PlcSnapshot snapshot = LatestAny;
             if (linkOn && snapshot != null)

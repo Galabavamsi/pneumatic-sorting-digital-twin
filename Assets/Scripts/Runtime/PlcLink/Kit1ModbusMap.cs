@@ -74,6 +74,27 @@ namespace Kit1DigitalTwin.PlcLink
         public const int RegLastCycleTimeMs = 7;
         public const int RegMapVersion = 8;
         public const int RegReserved = 9;
+
+        // The controller variable behind each coil and register, in map order. The
+        // EtherNet/IP reader fetches them by name instead of by Modbus address.
+        // Keep in step with PLC/Kit1/Kit1_Modbus_Map.csv.
+        public static readonly string[] CoilVariables =
+        {
+            "IN_MagazinePartPresent", "IN_MagazineEmpty", "IN_PartOnLift", "IN_Inductive",
+            "IN_Capacitive", "IN_LiftUp", "IN_LiftDown", "IN_FeedExtended",
+            "IN_FeedRetracted", "IN_LowerEjExtended", "IN_LowerEjRetracted", "IN_UpperEjExtended",
+            "IN_UpperEjRetracted", "IN_EStopOk", "IN_StartPB", "IN_StopPB",
+            "OUT_FeedExtend", "OUT_FeedRetract", "OUT_LowerEjExtend", "OUT_LowerEjRetract",
+            "OUT_UpperEjExtend", "OUT_UpperEjRetract", "OUT_LiftUp", "OUT_LiftDown",
+            "ST_AutoRunning", "ST_Faulted", "ST_Homed", "IN_ResetPB",
+            "IN_ContinuousMode", "HMI_Start", "HMI_Stop", "HMI_Reset"
+        };
+
+        public static readonly string[] RegisterVariables =
+        {
+            "HR_Heartbeat", "HR_Step", "HR_Material", "HR_PartsDone", "HR_MetalCount",
+            "HR_PlasticCount", "HR_FaultCode", "HR_LastCycleMs", "HR_MapVersion", "HR_Reserved"
+        };
     }
 
     // Sequence step numbers written by the PLC to register 40002.

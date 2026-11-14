@@ -24,9 +24,57 @@ namespace Kit1PlcSimulator
                     return LinkTest();
                 case "serve":
                     return Serve(args);
+                case "plcread":
+                    return PlcRead(args);
                 default:
-                    Console.WriteLine("Usage: Kit1PlcSimulator [serve [--port N] [--bind IP] | selftest | linktest]");
+                    Console.WriteLine(
+                        "Usage: Kit1PlcSimulator [serve [--port N] [--bind IP] | selftest | linktest | plcread [host]]");
                     return 2;
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // plcread: read the real Micro850 over EtherNet/IP with the Unity reader
+        // code. Read-only. Host defaults to "auto" (find the controller).
+        // ------------------------------------------------------------------
+        private static int PlcRead(string[] args)
+        {
+            string host = args.Length > 1 ? args[1] : Micro800EipClient.AutoHost;
+            using (Kit1EipReader reader = new Kit1EipReader(host, 2000))
+            {
+                try
+                {
+                    reader.Connect();
+                    reader.Read(out bool[] coils, out ushort[] registers);
+                    Kit1PlcSnapshot snapshot = Kit1PlcSnapshot.Decode(coils, registers, DateTime.UtcNow);
+                    Console.WriteLine($"Controller: {reader.Endpoint}");
+                    Console.WriteLine($"Map version {snapshot.MapVersion}, heartbeat {snapshot.Heartbeat}");
+                    Console.WriteLine($"Step {snapshot.Step}, fault {snapshot.FaultCode}, material {snapshot.Material}");
+                    Console.WriteLine($"Parts {snapshot.PartsCompleted} (metal {snapshot.MetalCount}, " +
+                        $"plastic {snapshot.PlasticCount}), last cycle {snapshot.LastCycleTimeMs} ms");
+                    for (int index = 0; index < coils.Length; index++)
+                    {
+                        Console.WriteLine($"  {Kit1ModbusMap.CoilVariables[index],-24} {coils[index]}");
+                    }
+
+                    const int Polls = 100;
+                    Stopwatch timer = Stopwatch.StartNew();
+                    for (int poll = 0; poll < Polls; poll++)
+                    {
+                        reader.Read(out coils, out registers);
+                    }
+
+                    double perPoll = timer.Elapsed.TotalMilliseconds / Polls;
+                    Console.WriteLine($"{Polls} full polls: {perPoll:0.0} ms each ({1000.0 / perPoll:0} Hz possible)");
+                    bool versionOk = snapshot.MapVersion == Kit1ModbusMap.MapVersion;
+                    Console.WriteLine(versionOk ? "PLCREAD PASS" : "PLCREAD FAIL (map version)");
+                    return versionOk ? 0 : 1;
+                }
+                catch (Exception exception)
+                {
+                    Console.WriteLine($"PLCREAD FAIL: {exception.GetType().Name}: {exception.Message}");
+                    return 1;
+                }
             }
         }
 
@@ -254,6 +302,45 @@ namespace Kit1PlcSimulator
                 Expect(rig.Plc.HR_Heartbeat >= 15 && rig.Plc.HR_Heartbeat <= 21,
                     $"15-21 beats in 2 s (got {rig.Plc.HR_Heartbeat})");
                 Expect(rig.Plc.HR_MapVersion == Kit1ModbusMap.MapVersion, "map version 1");
+            });
+
+            Scenario("EtherNet/IP reader variable names match Kit1_Modbus_Map.csv", () =>
+            {
+                string directory = AppContext.BaseDirectory;
+                string csv = null;
+                for (int up = 0; up < 8 && directory != null; up++)
+                {
+                    string candidate = System.IO.Path.Combine(directory, "PLC", "Kit1", "Kit1_Modbus_Map.csv");
+                    if (System.IO.File.Exists(candidate))
+                    {
+                        csv = candidate;
+                        break;
+                    }
+
+                    directory = System.IO.Path.GetDirectoryName(directory);
+                }
+
+                Expect(csv != null, "found PLC/Kit1/Kit1_Modbus_Map.csv");
+                if (csv == null)
+                {
+                    return;
+                }
+
+                List<string> coilNames = new List<string>();
+                List<string> registerNames = new List<string>();
+                foreach (string line in System.IO.File.ReadAllLines(csv).Skip(1))
+                {
+                    string[] fields = line.Split(',');
+                    if (fields.Length < 4)
+                    {
+                        continue;
+                    }
+
+                    (fields[2] == "coil" ? coilNames : registerNames).Add(fields[3]);
+                }
+
+                Expect(coilNames.SequenceEqual(Kit1ModbusMap.CoilVariables), "32 coil names in the same order");
+                Expect(registerNames.SequenceEqual(Kit1ModbusMap.RegisterVariables), "10 register names in the same order");
             });
 
             Console.WriteLine();

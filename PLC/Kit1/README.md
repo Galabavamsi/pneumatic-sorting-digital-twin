@@ -8,8 +8,10 @@ its state over Modbus TCP so the Unity twin can mirror the machine read-only.
 | `Kit1_Sort.st` | The program, Structured Text. Paste into a CCW ST program named `Kit1_Sort`. |
 | `Kit1_Variables.csv` | Every variable: scope (Global/Local), type, initial value, Modbus address. |
 | `Kit1_IO_Allocation.csv` | Patch list: which lead goes in which DI/DO jack, which SOL/PP feeds which cylinder. |
-| `Kit1_Modbus_Map.csv` | Modbus addresses the twin reads. Contract with `Assets/Scripts/Runtime/PlcLink/Kit1ModbusMap.cs`. |
+| `Kit1_Modbus_Map.csv` | The 42 values the twin reads, with their Modbus addresses. Contract with `Assets/Scripts/Runtime/PlcLink/Kit1ModbusMap.cs`; the EtherNet/IP reader uses the variable names, the Modbus reader the addresses. |
 | `CCW_SETUP.md` | Click-by-click: create the variables, build, download, dry run, first homing, first parts. |
+| `Copy-CcwVariables.ps1` | Puts the variables on the clipboard in the layout the CCW variable grid pastes, so they are not typed. |
+| `Read-PlcVariables.ps1` | Reads live values from the PLC by name over EtherNet/IP. Read-only, finds the PLC by itself. |
 
 `Tools/Kit1PlcSimulator` runs a line-by-line C# port of `Kit1_Sort.st` against a
 simulated Kit 1, so logic changes can be tested without the rig. Change both files together.
@@ -104,9 +106,13 @@ In outline:
    `Kit1_Sort.st` into the editor.
 3. *Build*. Fix anything it flags (see "If CCW rejects a line" below).
 4. *Download* and switch the controller to *Remote Run*. Check `HR_Heartbeat` counts up.
-5. Only once the machine sorts reliably, for the twin link:
-   - **Ethernet:** give the PLC a static address, e.g. `192.168.1.10 / 255.255.255.0`. It was
-     found on an automatic `169.254.x.x` address, which can change after a power cycle.
+5. For the twin link nothing more is needed in CCW: the twin finds the PLC and reads these
+   global variables by name over EtherNet/IP (`"protocol": "ethernetip"`, `"host": "auto"` in
+   `Assets/StreamingAssets/Kit1PlcLink.json`). Check it with
+   `dotnet run -c Release -- plcread` in `Tools/Kit1PlcSimulator`.
+6. Only if you prefer Modbus TCP (`"protocol": "modbus"`):
+   - **Ethernet:** give the PLC a static address, e.g. `192.168.1.10 / 255.255.255.0`. On DHCP
+     it gives itself a new `169.254.x.x` address from time to time.
    - **Modbus mapping:** *Controller → Modbus Mapping*. Add every row of
      `Kit1_Modbus_Map.csv`: BOOL variables as coils at `000001…000032`, INT variables as
      holding registers at `400001…400010`. The Micro850 serves Modbus TCP on port 502 and
@@ -134,7 +140,8 @@ instruction manual uses. The lines most likely to need a tweak:
 cd Tools/Kit1PlcSimulator
 dotnet run -c Release -- selftest   # logic scenarios in simulated time
 dotnet run -c Release -- linktest   # real Modbus TCP, read with the Unity client code
-dotnet run -c Release -- serve      # soft PLC on 127.0.0.1:502 for the Unity twin
+dotnet run -c Release -- serve      # soft PLC on 127.0.0.1:502 for the Unity twin (Modbus)
+dotnet run -c Release -- plcread    # read the real Micro850 over EtherNet/IP with the twin's reader code
 ```
 
 In `serve` mode: S start, X stop, R reset, E E-stop, C continuous/single, L load parts,

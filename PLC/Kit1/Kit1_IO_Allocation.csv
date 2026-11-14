@@ -24,3 +24,4 @@ DO-5,_IO_EM_DO_05,OUT_LowerEjExtend,SOL-06 (3S2),,patched 2026-11-10,PP-06 -> 3A
 DO-6,_IO_EM_DO_06,OUT_LiftUp,SOL-07 (4S1),,patched 2026-11-10,PP-07 raises the platform (confirmed at the rig)
 DO-7,_IO_EM_DO_07,OUT_LiftDown,SOL-08 (4S2),,patched 2026-11-10,PP-08 -> the 4A port that LOWERS the platform
 SOL (0V),,,Solenoid coil return,,patched 2026-11-10,Patched to a 0V jack
+24VDC (DO block),,,Supply for the PLC output jacks,,patched 2026-11-14,REQUIRED: lead from a red 24V jack. Without it no DO jack drives a valve

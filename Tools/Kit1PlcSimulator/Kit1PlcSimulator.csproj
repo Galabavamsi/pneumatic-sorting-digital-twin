@@ -19,6 +19,8 @@
   <ItemGroup>
     <Compile Include="..\..\Assets\Scripts\Runtime\PlcLink\Kit1ModbusMap.cs" Link="Shared\Kit1ModbusMap.cs" />
     <Compile Include="..\..\Assets\Scripts\Runtime\PlcLink\ModbusTcpClient.cs" Link="Shared\ModbusTcpClient.cs" />
+    <Compile Include="..\..\Assets\Scripts\Runtime\PlcLink\Micro800EipClient.cs" Link="Shared\Micro800EipClient.cs" />
+    <Compile Include="..\..\Assets\Scripts\Runtime\PlcLink\Kit1PlcReader.cs" Link="Shared\Kit1PlcReader.cs" />
   </ItemGroup>
 
 </Project>

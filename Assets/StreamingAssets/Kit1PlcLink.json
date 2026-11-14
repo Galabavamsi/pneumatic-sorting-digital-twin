@@ -1,6 +1,7 @@
 {
     "enabledOnStart": false,
-    "host": "127.0.0.1",
+    "protocol": "ethernetip",
+    "host": "auto",
     "port": 502,
     "unitId": 1,
     "pollHz": 20,
