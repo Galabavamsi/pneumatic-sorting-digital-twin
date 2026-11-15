@@ -268,6 +268,7 @@ Kit 1 bring-up material:
 - [`PLC/Kit1/CCW_SETUP.md`](PLC/Kit1/CCW_SETUP.md): click-by-click build, download and first run in Connected Components Workbench.
 - `Assets/Scripts/Runtime/PlcLink`: read-only live link. By default it finds the Micro850 by itself and reads its variables by name over EtherNet/IP, so nothing is set up in the controller; Modbus TCP is the alternative and is what the soft PLC serves. Press **F8** in `Kit1Viewer` to make the twin mirror the PLC; settings are in `Assets/StreamingAssets/Kit1PlcLink.json` or with `-plcHost <ip>`.
 - `Tools/Kit1PlcSimulator`: soft PLC running a C# port of the program against a simulated Kit 1. It provides `selftest`, `linktest` and `serve --demo` modes for rehearsing without the rig.
+- [Kit 1 setup guide](Documentation/KIT1_SETUP_GUIDE.md): the working configuration, start here.
 - [Kit 1 bring-up checklist](Documentation/KIT1_BRINGUP.md) and [hardware integration notes](Documentation/HARDWARE_INTEGRATION.md).
 
 See the [Kit 1 validation record](Documentation/VALIDATION.md), [Kit 2 validation record](Documentation/KIT2_VALIDATION.md), [Kit 3 validation record](Documentation/KIT3_VALIDATION.md), and [roadmap](Documentation/ROADMAP.md).
