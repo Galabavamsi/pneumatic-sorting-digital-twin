@@ -258,7 +258,8 @@ Kits 2 and 3 do not connect to physical hardware. Their logical tag names remain
 The physical trainer is a Gravitaz MATK-R5M with an Allen-Bradley Micro850 (`2080-L50E-48QBB`). Status on 2026-11-10:
 
 - **Done (2026-11-14):** the program is built in Connected Components Workbench, downloaded, and sorting metal and plastic parts on the real machine. The twin's reader code reads the running PLC over EtherNet/IP (`plcread` passes at about 26 ms per full read).
-- **Not done yet:** the twin itself has not been run live in the Unity editor against the machine, and a long continuous batch has not been logged.
+- **Done (2026-11-15):** the twin runs live in the Unity editor against the machine. It finds the PLC over EtherNet/IP, its cylinders follow the real ones, and its parts are classified and dropped into the bins as the real parts are sorted.
+- **Not done yet:** a long continuous batch has not been logged, and the operator panel in the twin still reads "LOCAL SIMULATION" while the link is live.
 
 On the rig, plastic leaves at the upper level (cylinder 2A, Tray 2) and metal at the lower level (lift down, cylinder 3A, Tray 1). The offline Kit 1 simulation still routes them the other way round; the live mirror follows the PLC.
 

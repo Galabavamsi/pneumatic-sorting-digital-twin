@@ -115,8 +115,29 @@ namespace Kit1DigitalTwin.PlcLink
 
             MirrorMaterial(snapshot);
             CheckRouteSync(snapshot);
+            MirrorRelease(snapshot);
             MirrorMagazine();
             MirrorProduction(snapshot);
+        }
+
+        // The twin releases a part when its own ejector reaches the end of the push. The
+        // real cylinder can reverse before the twin gets there (the PLC acts on the reed
+        // switch, and the twin is one poll behind), which left the part stuck on the
+        // platform and stopped the next one loading. Once the PLC has moved on from the
+        // eject step, the real part has gone: release the twin's part too.
+        private void MirrorRelease(Kit1PlcSnapshot snapshot)
+        {
+            if (!workpieceFlow.IsRouted || workpieceFlow.ReleasedToGravity)
+            {
+                return;
+            }
+
+            Kit1PlcStep ejectStep = workpieceFlow.ActiveRoute == 3 ? Kit1PlcStep.UpperEject : Kit1PlcStep.LowerEject;
+            if (snapshot.Step != ejectStep)
+            {
+                workpieceFlow.CompleteRoutedRelease();
+                Debug.Log($"Twin part released because the PLC finished its eject (now at {snapshot.Step}).");
+            }
         }
 
         // When the twin's ejector picks up the part, the PLC must be in the

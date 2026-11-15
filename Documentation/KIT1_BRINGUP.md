@@ -53,7 +53,7 @@ mode; a mixed batch in continuous mode had not been run when this was written.
 | Capacitive sensor | A fed plastic part first stopped beside `CS-01`, not in front of it, and the cycle stopped on fault 4. It was then lined up at the rig and plastic is seen. If it drifts again, fault 4 on plastic parts is the symptom |
 | Measured moves | 1A out 0.7 s, in 0.8 s. 2A out 1.9 s (slow, against a 3 s timeout), in 0.4 s. Lift timed at 1 s |
 
-Not done yet: a continuous batch, the static PLC address, and the twin link.
+Done on 2026-11-15: the twin ran live against the machine in the Unity editor (section 6). Not done yet: a logged continuous batch.
 
 The offline twin sequence (`Kit1AutomaticSequence`) still sends metal to the upper ejector.
 The live mirror follows the PLC, so it is unaffected; the offline routing is the opposite of

@@ -208,6 +208,17 @@ Nothing extra is set up in the PLC. With the machine running and the Ethernet ca
 The twin finds the PLC by itself and only reads from it. Settings are in
 `Assets/StreamingAssets/Kit1PlcLink.json`.
 
+Confirmed working on 2026-11-15. What to expect while it is live:
+
+- The twin's cylinders and lift move with the real solenoids.
+- A part shows dark until the real sensors classify it, then blue (metal) or orange (plastic).
+- When the PLC finishes an eject, the twin's part is released and drops into the bin; the
+  twin's magazine count goes down and the next part loads.
+- The Console logs `Twin routed part UPPER/LOWER … In sync.` and `PLC completed part N`.
+- The twin's own Start button and manual keys are disabled; F8 again returns to offline simulation.
+- If the twin's part and the real one get out of step (for example the link was switched on
+  mid-cycle), wait until the machine is home and press **M** in the Game view.
+
 ## 8. Known limits
 
 - The PLC's address changes by itself (it is on automatic addressing). Tools here find it each

@@ -371,6 +371,25 @@ namespace Kit1DigitalTwin
             colliderComponent.convex = false;
         }
 
+        // PLC live mode: the real ejector has finished its push. The twin's ejector may
+        // not have reached its own release point yet, because the real cylinder reverses
+        // on its reed switch while the twin is still catching up. Finish the push here so
+        // the part always leaves the platform when the real one did.
+        public void CompleteRoutedRelease()
+        {
+            if (activeRoute == 0 || releasedToGravity || workpieceMotionRoot == null)
+            {
+                return;
+            }
+
+            bool upper = activeRoute == 3;
+            routedDistance = Mathf.Max(
+                routedDistance, upper ? UpperReleaseDistanceMetres : LowerReleaseDistanceMetres);
+            Vector3 direction = upper ? upperEjector.TravelWorldDirection : lowerEjector.TravelWorldDirection;
+            workpieceMotionRoot.position = routeStartWorldPosition + direction * routedDistance;
+            ReleaseToGravity();
+        }
+
         private void ReleaseToGravity()
         {
             if (releasedToGravity)
