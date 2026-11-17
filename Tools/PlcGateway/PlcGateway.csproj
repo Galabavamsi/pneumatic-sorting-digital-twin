@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Read-only gateway between the Micro850 and the dashboard app.
+    Polls the controller over EtherNet/IP (the same client the Unity twin uses,
+    which can only read) and serves the latest state as JSON and as a live stream.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>PlcGateway</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Assets\Scripts\Runtime\PlcLink\Micro800EipClient.cs" Link="Shared\Micro800EipClient.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="profiles\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

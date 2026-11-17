@@ -1,0 +1,254 @@
+import * as THREE from 'three';
+
+// How each kit's CAD model moves. The component numbers, strokes and directions
+// are the ones the Unity twin's scripts use; the models are the same CAD exports
+// (Assets/Models/KitN/KitN_components.obj) converted by Dashboard/tools/obj-to-glb.mjs.
+//
+// Coordinates are the CAD's: millimetres, Z up. Unity's OBJ importer mirrors X,
+// so a Unity "transform.right" is CAD -X; the directions below are CAD directions.
+export type V3 = [number, number, number];
+
+export type PartState = {
+  mode: 'magazine' | 'table' | 'held' | 'falling' | 'gone';
+  pos: THREE.Vector3;          // centre of the workpiece in play, CAD space
+  target: THREE.Vector3;       // where a released part comes to rest
+  bin: number;                 // which pile it joins: 0 or 1
+  material: number;            // 0 unknown, 1 metal, 2 plastic
+  data: Record<string, number>;
+};
+
+export type TwinDef = {
+  url: string;
+  centre: V3;                  // point the camera looks at
+  distance: number;            // camera distance, in scene units (cm)
+  azimuth: number;
+  groups: { id: string; parent?: string; components: string[]; pivot?: V3 }[];
+  bins: string[];              // drawn see-through so dropped parts stay visible
+  stock: [number, number];     // component number range of the waiting workpieces
+  activePart: string;
+  partHome: V3;
+  partHeight: number;
+  highlight?: { component: string; actuator: string };     // e.g. the vacuum cup
+  fullNames?: boolean;         // meshes are matched by their whole name (P087), not the last three digits
+  stockList?: string[];        // waiting workpieces, when they are not one number range
+  hidden?: string[];           // CAD parts not drawn (a duplicate of the workpiece in play)
+  // extra pieces that travel with the workpiece (Kit 5's inserts): the mesh is moved by
+  // data[key + 'x' | 'y' | 'z'] millimetres from its CAD position, hidden when data[key + 'h'] is 1
+  props?: { mesh: string; key: string }[];
+  rest: V3[];                  // where parts pile up, per bin
+  // v: eased travel (0..1) of each actuator, by the snapshot's actuator id
+  pose: (groups: Record<string, THREE.Group>, v: Record<string, number>) => void;
+  part: (s: PartState, v: Record<string, number>, step: number, def: TwinDef, dt: number) => void;
+};
+
+export const release = (s: PartState, def: TwinDef, bin: number, piles: number[]) => {
+  const r = def.rest[bin];
+  s.bin = bin;
+  s.target.set(r[0], r[1], r[2] + def.partHeight / 2 + Math.min(piles[bin], 3) * def.partHeight);
+  s.mode = 'falling';
+};
+
+// piles: how many parts already lie in each bin (set by the viewer before part())
+export const pileCounts = [0, 0];
+
+// ----------------------------------------------------------------------- Kit 1
+// PneumaticCylinderTest.cs (feed 025 + 028, 40 mm, -Y), SecondCylinderTest.cs (lower
+// ejector 026 + 055, 50 mm, -Y), ThirdCylinderTest.cs (upper ejector 027 + 056, 50 mm, -X),
+// LiftCylinderTest.cs (029 + 052, 31.2 mm up; the CAD pose is lift DOWN),
+// MagazineFeedTest.cs (approach 12 / 8 mm, release at 37.5 / 41.5 mm).
+const kit1: TwinDef = {
+  url: '/models/kit1.glb',
+  centre: [0, 10, 110],
+  distance: 88,
+  azimuth: -0.8,
+  groups: [
+    { id: 'feed', components: ['025', '028'] },
+    { id: 'lower', components: ['026', '055'] },
+    { id: 'upper', components: ['027', '056'] },
+    { id: 'lift', components: ['029', '052'] },
+  ],
+  bins: ['023', '024', '059'],
+  stock: [30, 46],
+  activePart: '042',
+  partHome: [-20.7, -6.7, 111],
+  partHeight: 10,
+  rest: [
+    [-103, -55, 0],      // off the upper level, towards -X
+    [-20, -131, 0],      // off the lower level, towards -Y
+  ],
+  pose(g, v) {
+    g.feed.position.y = -40 * (v['1A'] ?? 0);
+    g.upper.position.x = -50 * (v['2A'] ?? 0);
+    g.lower.position.y = -50 * (v['3A'] ?? 0);
+    g.lift.position.z = 31.2 * (1 - (v['4A'] ?? 0));      // 4A = 1 is lift down
+  },
+  part(s, v, step, def) {
+    const [hx, hy, hz] = def.partHome;
+    if ((s.mode === 'magazine' || s.mode === 'gone') && (step === 3 || step === 4)) {
+      s.mode = 'table';
+      s.data = { fed: 0, up: 0, low: 0 };
+    } else if (s.mode === 'gone' && (step === 2 || step === 0 || step === 1)) {
+      s.mode = 'magazine';
+      s.material = 0;
+      s.pos.set(hx, hy, hz);
+    }
+
+    if (s.mode !== 'table') return;
+    const d = s.data;
+    const liftDown = v['4A'] ?? 0;
+    d.fed = Math.max(d.fed, 40 * (v['1A'] ?? 0));
+    const onLift = d.fed >= 39.5;
+    if (onLift && liftDown <= 0.02) d.up = Math.max(d.up, 50 * (v['2A'] ?? 0) - 12);
+    if (onLift && liftDown >= 0.98) d.low = Math.max(d.low, 50 * (v['3A'] ?? 0) - 8);
+    s.pos.set(hx - Math.max(0, d.up), hy - d.fed - Math.max(0, d.low), hz - (onLift && d.up <= 0 ? 31.2 * liftDown : 0));
+    if (d.up >= 37.5) release(s, def, 0, pileCounts);
+    else if (d.low >= 41.5) release(s, def, 1, pileCounts);
+    else if (step < 3 && d.fed < 1) {
+      s.mode = 'magazine';
+      s.pos.set(hx, hy, hz);
+    }
+  },
+};
+
+// ----------------------------------------------------------------------- Kit 2
+// Kit2FeedCylinderCalibration.cs (029 + 018, stage 50 / eject 90 mm, -Y),
+// Kit2SecondCylinderCalibration.cs (030 + 031, stage 56 / eject 90 mm, -X),
+// Kit2StampingCylinderCalibration.cs (A: 032 + 034, B: 033 + 035, 30 mm down).
+const kit2: TwinDef = {
+  url: '/models/kit2.glb',
+  centre: [0, 0, 120],
+  distance: 92,
+  azimuth: -0.8,
+  groups: [
+    { id: 'feed', components: ['029', '018'] },
+    { id: 'transfer', components: ['030', '031'] },
+    { id: 'stampA', components: ['032', '034'] },
+    { id: 'stampB', components: ['033', '035'] },
+  ],
+  bins: ['027', '028', '058'],
+  stock: [36, 51],
+  activePart: '036',
+  partHome: [-1.7, -24.8, 119.8],
+  partHeight: 10,
+  rest: [
+    [-2, -150, 5],       // Bin 1, straight on from Stamp A
+    [-134, -75, 5],      // Bin 2, straight on from Stamp B
+  ],
+  pose(g, v) {
+    g.feed.position.y = -90 * (v.FEED ?? 0);
+    g.transfer.position.x = -90 * (v.XFER ?? 0);
+    g.stampA.position.z = -30 * (v.SA ?? 0);
+    g.stampB.position.z = -30 * (v.SB ?? 0);
+  },
+  part(s, v, step, def) {
+    const [hx, hy, hz] = def.partHome;
+    if ((s.mode === 'magazine' || s.mode === 'gone') && step === 11) {
+      s.mode = 'table';
+      s.data = { fed: 0, ejectA: 0, across: 0, ejectB: 0 };
+    } else if (s.mode === 'gone' && (step === 10 || step === 0)) {
+      s.mode = 'magazine';
+      s.material = 0;
+      s.pos.set(hx, hy, hz);
+    }
+
+    if (s.mode !== 'table') return;
+    const d = s.data;
+    const feed = 90 * (v.FEED ?? 0);
+    const transfer = 90 * (v.XFER ?? 0);
+    d.fed = Math.max(d.fed, Math.min(feed, 50));
+    if (d.fed >= 49.5) {
+      if (d.across <= 0) d.ejectA = Math.max(d.ejectA, feed - 50);
+      if (d.ejectA <= 0) d.across = Math.max(d.across, Math.min(transfer, 56));
+      if (d.across >= 55.5) d.ejectB = Math.max(d.ejectB, transfer - 56);
+    }
+
+    s.pos.set(hx - d.across - Math.max(0, d.ejectB), hy - d.fed - Math.max(0, d.ejectA), hz);
+    if (d.ejectA >= 39) release(s, def, 0, pileCounts);
+    else if (d.ejectB >= 33) release(s, def, 1, pileCounts);
+  },
+};
+
+// ----------------------------------------------------------------------- Kit 3
+// Kit3ManualCommissioning.cs (feed 032 + 034, 50 mm; stamp 035 + 044, 45 mm; workpieces
+// 050..065; pick-up 033), Kit3RotaryCalibration.cs (arm turns 90 degrees about the centre
+// of 048; slide 033 / 040 / 041, 50 mm; lift group, 20 mm).
+const K3_PIVOT: V3 = [408, 285, 0];
+const K3_CUP: V3 = [310.55, 283.9, 115.9];      // cup centre and underside in the CAD pose
+const K3_CONTACT = 4.6;                         // lifts the cup out of the part it sits in in the CAD pose
+
+const kit3: TwinDef = {
+  url: '/models/kit3.glb',
+  centre: [230, 245, 105],
+  distance: 92,
+  azimuth: 0.45,
+  groups: [
+    { id: 'feed', components: ['032', '034'] },
+    { id: 'stamp', components: ['035', '044'] },
+    { id: 'turn', components: ['023', '024', '036', '048'], pivot: K3_PIVOT },
+    { id: 'lift', parent: 'turn', components: ['014', '020', '022', '031', '046', '069'] },
+    { id: 'slide', parent: 'lift', components: ['033', '040', '041'] },
+  ],
+  bins: ['027', '028', '039'],
+  stock: [50, 65],
+  activePart: '050',
+  partHome: [212.3, 285.5, 115.2],
+  partHeight: 10,
+  highlight: { component: '033', actuator: 'VC' },
+  rest: [
+    [310, 284, 5],       // Tray 1, under the pulled-in head
+    [409, 187, 5],       // Tray 2, a quarter turn away
+  ],
+  pose(g, v) {
+    g.feed.position.x = 50 * (v['1A'] ?? 0);
+    g.stamp.position.z = -45 * (v['2A'] ?? 0);
+    g.turn.rotation.z = (Math.PI / 2) * (v['5A'] ?? 0);
+    g.lift.position.z = K3_CONTACT + 20 * (1 - (v['4A'] ?? 0));     // 4A = 1 is arm down
+    g.slide.position.x = -50 * (v['3A'] ?? 0);                      // 3A pushes towards the stamp station
+  },
+  part(s, v, step, def) {
+    const [hx, hy, hz] = def.partHome;
+    const angle = (Math.PI / 2) * (v['5A'] ?? 0);
+    const rx = K3_CUP[0] - 50 * (v['3A'] ?? 0) - K3_PIVOT[0];
+    const ry = K3_CUP[1] - K3_PIVOT[1];
+    const cupX = K3_PIVOT[0] + rx * Math.cos(angle) - ry * Math.sin(angle);
+    const cupY = K3_PIVOT[1] + rx * Math.sin(angle) + ry * Math.cos(angle);
+    const cupZ = K3_CUP[2] + K3_CONTACT + 20 * (1 - (v['4A'] ?? 0));
+    const vacuum = (v.VC ?? 0) > 0.5;
+    const feeding = step === 11 || step === 12;
+
+    if ((s.mode === 'magazine' || s.mode === 'gone') && feeding) {
+      s.mode = 'table';
+      s.pos.set(hx, hy, hz);
+    } else if (s.mode === 'gone' && (step === 10 || step === 0)) {
+      s.mode = 'magazine';
+      s.material = 0;
+      s.pos.set(hx, hy, hz);
+    }
+
+    if (s.mode === 'table') {
+      s.pos.x = Math.max(s.pos.x, hx + 50 * (v['1A'] ?? 0));      // pushed, then left there
+      const top = s.pos.z + def.partHeight / 2;
+      // reach tolerances from the Unity twin: 18 mm sideways, 12 mm above
+      if (vacuum && Math.hypot(cupX - s.pos.x, cupY - s.pos.y) < 18 && cupZ - top < 12) {
+        s.mode = 'held';
+      } else if (!feeding && step < 11) {
+        s.mode = 'magazine';
+        s.pos.set(hx, hy, hz);
+      }
+    }
+
+    if (s.mode === 'held') {
+      s.pos.set(cupX, cupY, cupZ - def.partHeight / 2);
+      if (!vacuum) {
+        const bin = (v['5A'] ?? 0) > 0.5 ? 1 : 0;
+        def.rest[bin][0] = cupX;      // it drops straight down from wherever the head is
+        def.rest[bin][1] = cupY;
+        release(s, def, bin, pileCounts);
+      }
+    }
+  },
+};
+
+import { kit4, kit5 } from './twins45';
+
+export const TWINS: Record<string, TwinDef> = { kit1, kit2, kit3, kit4, kit5 };

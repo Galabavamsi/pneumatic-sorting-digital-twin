@@ -1,0 +1,6 @@
+{
+  "url": "https://YOUR-PROJECT.supabase.co",
+  "key": "YOUR-PUBLISHABLE-KEY",
+  "machineId": "rig-1",
+  "token": "YOUR-INGEST-TOKEN"
+}

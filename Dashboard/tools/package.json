@@ -1,0 +1,9 @@
+{
+  "name": "dashboard-tools",
+  "private": true,
+  "type": "module",
+  "description": "Model conversion tools for the dashboard",
+  "dependencies": {
+    "occt-import-js": "^0.0.23"
+  }
+}

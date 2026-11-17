@@ -51,3 +51,11 @@ Assets/Scenes/SampleScene.unity.meta
 # Kit 1 PLC simulator build output
 Tools/**/bin/
 !Tools/**/*.csproj
+
+# Dashboard and gateway
+Tools/PlcGateway/cloud.json
+Tools/**/bin/
+Dashboard/app/.env*
+!Dashboard/app/.env.example
+Dashboard/tools/node_modules/
+Dashboard/tools/out/

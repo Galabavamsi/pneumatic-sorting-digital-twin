@@ -1,0 +1,94 @@
+{
+  "id": "kit1",
+  "name": "Kit 1",
+  "title": "Metal / plastic sort",
+  "description": "Feeds a part onto the lift, tells metal from plastic with two sensors, then pushes plastic into Tray 2 and metal into Tray 1.",
+  "probe": "HR_STEP",
+  "vars": {
+    "step": "HR_STEP",
+    "fault": "HR_FAULTCODE",
+    "material": "HR_MATERIAL",
+    "heartbeat": "HR_HEARTBEAT",
+    "running": "ST_AUTORUNNING",
+    "faulted": "ST_FAULTED",
+    "parts": "HR_PARTSDONE"
+  },
+  "cycleStartStep": 3,
+  "idleSteps": [0, 2],
+  "steps": [
+    { "id": 0, "name": "Idle" },
+    { "id": 1, "name": "Homing" },
+    { "id": 2, "name": "Waiting for a part" },
+    { "id": 3, "name": "Feed out" },
+    { "id": 4, "name": "Feed back" },
+    { "id": 5, "name": "Detect material" },
+    { "id": 6, "name": "Upper eject" },
+    { "id": 7, "name": "Upper retract" },
+    { "id": 8, "name": "Lift down" },
+    { "id": 9, "name": "Lower eject" },
+    { "id": 10, "name": "Lower retract" },
+    { "id": 11, "name": "Lift up" },
+    { "id": 12, "name": "Part counted" },
+    { "id": 13, "name": "Stopping" },
+    { "id": 90, "name": "Fault" }
+  ],
+  "sequence": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  "faults": {
+    "1": "Emergency stop pressed",
+    "2": "Feed cylinder did not push out",
+    "3": "Feed cylinder did not pull in",
+    "4": "Part fed but no sensor saw it",
+    "5": "Upper ejector timeout",
+    "6": "Lift down timeout",
+    "7": "Lower ejector timeout",
+    "8": "Lift up timeout",
+    "9": "Homing did not finish"
+  },
+  "materials": { "0": "None", "1": "Metal", "2": "Plastic" },
+  "counters": [
+    { "id": "parts", "label": "Parts sorted", "var": "HR_PARTSDONE" },
+    { "id": "metal", "label": "Metal · Tray 1", "var": "HR_METALCOUNT" },
+    { "id": "plastic", "label": "Plastic · Tray 2", "var": "HR_PLASTICCOUNT" }
+  ],
+  "inputs": [
+    { "id": "DI-0", "label": "1A pulled in", "var": "_IO_EM_DI_00" },
+    { "id": "DI-1", "label": "1A pushed out", "var": "_IO_EM_DI_01" },
+    { "id": "DI-2", "label": "2A pulled in", "var": "_IO_EM_DI_02" },
+    { "id": "DI-3", "label": "2A pushed out", "var": "_IO_EM_DI_03" },
+    { "id": "DI-4", "label": "3A pulled in", "var": "_IO_EM_DI_04" },
+    { "id": "DI-5", "label": "3A pushed out", "var": "_IO_EM_DI_05" },
+    { "id": "DI-6", "label": "Any part (CS-01)", "var": "_IO_EM_DI_06" },
+    { "id": "DI-7", "label": "Metal part (IS-01)", "var": "_IO_EM_DI_07" },
+    { "id": "DI-8", "label": "Part in magazine", "var": "_IO_EM_DI_08" },
+    { "id": "DI-9", "label": "Start (green)", "var": "_IO_EM_DI_09" },
+    { "id": "DI-10", "label": "Stop (red)", "var": "_IO_EM_DI_10" },
+    { "id": "DI-11", "label": "Reset (black)", "var": "_IO_EM_DI_11" },
+    { "id": "DI-12", "label": "E-stop released", "var": "_IO_EM_DI_12" },
+    { "id": "DI-13", "label": "Continuous mode", "var": "_IO_EM_DI_13" }
+  ],
+  "outputs": [
+    { "id": "DO-0", "label": "1A out", "var": "_IO_EM_DO_00" },
+    { "id": "DO-1", "label": "1A in", "var": "_IO_EM_DO_01" },
+    { "id": "DO-2", "label": "2A out", "var": "_IO_EM_DO_02" },
+    { "id": "DO-3", "label": "2A in", "var": "_IO_EM_DO_03" },
+    { "id": "DO-4", "label": "3A in", "var": "_IO_EM_DO_04" },
+    { "id": "DO-5", "label": "3A out", "var": "_IO_EM_DO_05" },
+    { "id": "DO-6", "label": "Lift up", "var": "_IO_EM_DO_06" },
+    { "id": "DO-7", "label": "Lift down", "var": "_IO_EM_DO_07" }
+  ],
+  "actuators": [
+    { "id": "1A", "label": "Feed pusher", "kind": "linear", "a": { "var": "_IO_EM_DO_00", "label": "Out" }, "b": { "var": "_IO_EM_DO_01", "label": "In" } },
+    { "id": "2A", "label": "Upper ejector", "kind": "linear", "a": { "var": "_IO_EM_DO_02", "label": "Out" }, "b": { "var": "_IO_EM_DO_03", "label": "In" } },
+    { "id": "3A", "label": "Lower ejector", "kind": "linear", "a": { "var": "_IO_EM_DO_05", "label": "Out" }, "b": { "var": "_IO_EM_DO_04", "label": "In" } },
+    { "id": "4A", "label": "Lift", "kind": "linear", "a": { "var": "_IO_EM_DO_07", "label": "Down" }, "b": { "var": "_IO_EM_DO_06", "label": "Up" } }
+  ],
+  "settings": [
+    { "label": "Lift travel", "var": "CFG_TRAVELTIME", "unit": "ms" },
+    { "label": "Move timeout", "var": "CFG_MOVETIMEOUT", "unit": "ms" },
+    { "label": "Home timeout", "var": "CFG_HOMETIMEOUT", "unit": "ms" },
+    { "label": "Detect settle", "var": "CFG_DETECTSETTLE", "unit": "ms" },
+    { "label": "Detect window", "var": "CFG_DETECTWINDOW", "unit": "ms" },
+    { "label": "Feed delay", "var": "CFG_FEEDDELAY", "unit": "ms" },
+    { "label": "Metal leaves at upper level", "var": "CFG_METALTOUPPER", "unit": "bool" }
+  ]
+}

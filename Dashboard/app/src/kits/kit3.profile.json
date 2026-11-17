@@ -1,0 +1,97 @@
+{
+  "id": "kit3",
+  "name": "Kit 3",
+  "title": "Stamp and vacuum sort",
+  "description": "Feeds a part, reads its colour, stamps it, picks it up with a vacuum head and drops plastic in Tray 1 or metal in Tray 2.",
+  "probe": "K3_STEP",
+  "vars": {
+    "step": "K3_STEP",
+    "fault": "K3_FAULTCODE",
+    "material": "K3_MATERIAL",
+    "heartbeat": "K3_HEARTBEAT",
+    "running": "K3_ST_AUTORUNNING",
+    "faulted": "K3_ST_FAULTED",
+    "parts": "K3_PARTSDONE"
+  },
+  "cycleStartStep": 11,
+  "idleSteps": [0, 10],
+  "steps": [
+    { "id": 0, "name": "Idle" },
+    { "id": 1, "name": "Home: arm up" },
+    { "id": 2, "name": "Home: head in" },
+    { "id": 3, "name": "Home: arm to Tray 1 side" },
+    { "id": 10, "name": "Waiting for a part" },
+    { "id": 11, "name": "Feed out" },
+    { "id": 12, "name": "Feed back" },
+    { "id": 13, "name": "Read camera" },
+    { "id": 14, "name": "Stamp down" },
+    { "id": 15, "name": "Stamp up" },
+    { "id": 16, "name": "Head out" },
+    { "id": 17, "name": "Arm down" },
+    { "id": 18, "name": "Vacuum grip" },
+    { "id": 19, "name": "Arm up" },
+    { "id": 20, "name": "Head in" },
+    { "id": 21, "name": "Turn to Tray 2" },
+    { "id": 22, "name": "Head out at Tray 2" },
+    { "id": 23, "name": "Release" },
+    { "id": 24, "name": "Head in after drop" },
+    { "id": 25, "name": "Turn back" },
+    { "id": 26, "name": "Part counted" },
+    { "id": 90, "name": "Fault" }
+  ],
+  "sequence": [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 25, 26],
+  "faults": {
+    "1": "Emergency stop pressed",
+    "2": "Feed cylinder did not push out",
+    "3": "Feed cylinder did not pull in",
+    "9": "Homing did not finish"
+  },
+  "materials": { "0": "None", "1": "Metal", "2": "Plastic" },
+  "counters": [
+    { "id": "parts", "label": "Parts sorted", "var": "K3_PARTSDONE" },
+    { "id": "metal", "label": "Metal · Tray 2", "var": "K3_METALCOUNT" },
+    { "id": "plastic", "label": "Plastic · Tray 1", "var": "K3_PLASTICCOUNT" }
+  ],
+  "inputs": [
+    { "id": "DI-0", "label": "1A pulled in", "var": "_IO_EM_DI_00" },
+    { "id": "DI-1", "label": "1A pushed out", "var": "_IO_EM_DI_01" },
+    { "id": "DI-2", "label": "Part in magazine", "var": "_IO_EM_DI_02" },
+    { "id": "DI-3", "label": "Camera", "var": "_IO_EM_DI_03" },
+    { "id": "DI-9", "label": "Start (green)", "var": "_IO_EM_DI_09" },
+    { "id": "DI-10", "label": "Stop (red)", "var": "_IO_EM_DI_10" },
+    { "id": "DI-11", "label": "Reset (black)", "var": "_IO_EM_DI_11" },
+    { "id": "DI-12", "label": "E-stop released", "var": "_IO_EM_DI_12" },
+    { "id": "DI-13", "label": "Continuous mode", "var": "_IO_EM_DI_13" }
+  ],
+  "outputs": [
+    { "id": "DO-0", "label": "1A out", "var": "_IO_EM_DO_00" },
+    { "id": "DO-1", "label": "1A in", "var": "_IO_EM_DO_01" },
+    { "id": "DO-2", "label": "Stamp down", "var": "_IO_EM_DO_02" },
+    { "id": "DO-3", "label": "Stamp up", "var": "_IO_EM_DO_03" },
+    { "id": "DO-4", "label": "Head in", "var": "_IO_EM_DO_04" },
+    { "id": "DO-5", "label": "Head out", "var": "_IO_EM_DO_05" },
+    { "id": "DO-6", "label": "Arm up", "var": "_IO_EM_DO_06" },
+    { "id": "DO-7", "label": "Arm down", "var": "_IO_EM_DO_07" },
+    { "id": "DO-8", "label": "Arm to Tray 1 side", "var": "_IO_EM_DO_08" },
+    { "id": "DO-9", "label": "Arm to Tray 2", "var": "_IO_EM_DO_09" },
+    { "id": "DO-10", "label": "Vacuum", "var": "_IO_EM_DO_10" }
+  ],
+  "actuators": [
+    { "id": "1A", "label": "Feed pusher", "kind": "linear", "a": { "var": "_IO_EM_DO_00", "label": "Out" }, "b": { "var": "_IO_EM_DO_01", "label": "In" } },
+    { "id": "2A", "label": "Stamp", "kind": "linear", "a": { "var": "_IO_EM_DO_02", "label": "Down" }, "b": { "var": "_IO_EM_DO_03", "label": "Up" } },
+    { "id": "3A", "label": "Vacuum head", "kind": "linear", "a": { "var": "_IO_EM_DO_05", "label": "Out" }, "b": { "var": "_IO_EM_DO_04", "label": "In" } },
+    { "id": "4A", "label": "Arm lift", "kind": "linear", "a": { "var": "_IO_EM_DO_07", "label": "Down" }, "b": { "var": "_IO_EM_DO_06", "label": "Up" } },
+    { "id": "5A", "label": "Arm turn", "kind": "rotary", "a": { "var": "_IO_EM_DO_09", "label": "Tray 2" }, "b": { "var": "_IO_EM_DO_08", "label": "Tray 1" } },
+    { "id": "VC", "label": "Vacuum", "kind": "switch", "a": { "var": "_IO_EM_DO_10", "label": "On" }, "b": { "var": null, "label": "Off" } }
+  ],
+  "settings": [
+    { "label": "Camera settle", "var": "K3_T_CAMERASETTLE", "unit": "ms" },
+    { "label": "Stamp travel", "var": "K3_T_STAMP", "unit": "ms" },
+    { "label": "Head travel (3A)", "var": "K3_T_SLIDE", "unit": "ms" },
+    { "label": "Arm travel (4A)", "var": "K3_T_LIFT", "unit": "ms" },
+    { "label": "Arm turn (5A)", "var": "K3_T_ROTARY", "unit": "ms" },
+    { "label": "Vacuum grip", "var": "K3_T_VACUUM", "unit": "ms" },
+    { "label": "Release", "var": "K3_T_RELEASE", "unit": "ms" },
+    { "label": "Camera on means metal", "var": "K3_CFG_CAMERAONISMETAL", "unit": "bool" }
+  ]
+}
