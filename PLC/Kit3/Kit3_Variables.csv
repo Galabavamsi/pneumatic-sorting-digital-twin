@@ -1,0 +1,57 @@
+name,scope,data_type,initial_value,modbus_address,comment
+K3_CFG_CameraOnIsMetal,Global,BOOL,FALSE,,TRUE = camera output ON means metal; FALSE = ON means plastic. Not yet verified
+K3_CFG_Tray2Extended,Global,BOOL,FALSE,,TRUE = at Tray 2 the head must go out before dropping. Not yet verified
+K3_CFG_EStopFitted,Global,BOOL,TRUE,,FALSE only for bench tests with no E-stop on DI-12
+K3_CFG_EStopNC,Global,BOOL,TRUE,,TRUE = E-stop contact is on when released
+K3_T_Stamp,Global,TIME,T#1s,,Stamp travel time (each way)
+K3_T_Slide,Global,TIME,T#1s,,Vacuum head travel time (3A)
+K3_T_Lift,Global,TIME,T#1s,,Arm up / down travel time (4A)
+K3_T_Rotary,Global,TIME,T#1500ms,,Rotary travel time (5A)
+K3_T_Vacuum,Global,TIME,T#500ms,,Wait after vacuum on before lifting
+K3_T_Release,Global,TIME,T#500ms,,Wait after vacuum off before moving
+K3_T_MoveTimeout,Global,TIME,T#3s,,Longest allowed feed move
+K3_T_HomeTimeout,Global,TIME,T#8s,,Longest allowed homing
+K3_T_EmptyDebounce,Global,TIME,T#2s,,Magazine empty this long ends the batch
+K3_T_FeedDelay,Global,TIME,T#500ms,,Pause before each feed
+K3_T_CameraSettle,Global,TIME,T#300ms,,Wait before reading the camera
+K3_IN_FeedRetracted,Global,BOOL,,,1A pulled in (DI-0)
+K3_IN_FeedExtended,Global,BOOL,,,1A pushed out (DI-1)
+K3_IN_MagPart,Global,BOOL,,,Part waiting in the magazine (DI-2)
+K3_IN_Camera,Global,BOOL,,,Camera output (DI-3)
+K3_IN_EStopOk,Global,BOOL,,,TRUE = E-stop healthy (DI-12)
+K3_IN_StartPB,Global,BOOL,,,Green (DI-9)
+K3_IN_StopPB,Global,BOOL,,,Red (DI-10)
+K3_IN_ResetPB,Global,BOOL,,,Black (DI-11)
+K3_IN_Continuous,Global,BOOL,,,Selector (DI-13)
+K3_OUT_FeedExt,Global,BOOL,,,Command: 1A out
+K3_OUT_StampDown,Global,BOOL,,,Command: stamp down
+K3_OUT_SlideExt,Global,BOOL,,,Command: vacuum head out
+K3_OUT_LiftUp,Global,BOOL,TRUE,,Command: arm up
+K3_OUT_RotTray2,Global,BOOL,,,Command: rotary at Tray 2
+K3_OUT_Vacuum,Global,BOOL,,,Command: vacuum on
+K3_ST_AutoRunning,Global,BOOL,,,Status
+K3_ST_Faulted,Global,BOOL,,,Status
+K3_HMI_Start,Global,BOOL,,,Start command (PLC clears it)
+K3_HMI_Stop,Global,BOOL,,,Stop command (PLC clears it)
+K3_HMI_Reset,Global,BOOL,,,Reset command (PLC clears it)
+K3_Heartbeat,Global,INT,,,+1 about every 100 ms
+K3_Step,Global,INT,,,Sequence step (see Kit3_Sort.st header)
+K3_Material,Global,INT,,,0 none / 1 metal / 2 plastic
+K3_PartsDone,Global,INT,,,Parts sorted
+K3_MetalCount,Global,INT,,,Metal parts sorted
+K3_PlasticCount,Global,INT,,,Plastic parts sorted
+K3_FaultCode,Global,INT,,,Fault code (see Kit3_Sort.st header)
+rawEStop,Local,BOOL,,,
+outEnable,Local,BOOL,,,
+wantAuto,Local,BOOL,,,
+stopRequest,Local,BOOL,,,
+homed,Local,BOOL,,,TRUE once homing has finished; the home coils are then held in Idle
+rotEnable,Local,BOOL,,,TRUE once the head is in: only then may the rotary coils switch on
+hbPulse,Local,BOOL,,,
+stepChanged,Local,BOOL,,,
+stepPrev,Local,INT,,,
+tStep,Local,TON,,,Time in current step
+tHb,Local,TON,,,Heartbeat
+rtStart,Local,R_TRIG,,,
+rtStop,Local,R_TRIG,,,
+rtReset,Local,R_TRIG,,,
