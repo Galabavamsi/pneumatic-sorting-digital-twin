@@ -679,10 +679,13 @@ function Scene({ p, preset, auto, onBack, onClose }: { p: Palette; preset: ArPre
   useEffect(() => {
     if (!auto || tried.current || !ready || supported !== true) return;
     tried.current = true;
-    const timer = setTimeout(() => {
-      enter(true);
-    }, 300);      // the canvas mounts after the models are ready
-    return () => clearTimeout(timer);
+    // Not cancelled on re-render: this component re-renders several times a second
+    // with the feed, and a cancelled timer would never start the session.
+    const start = (attempt: number) => {
+      if (renderer.current) enter(true);
+      else if (attempt < 40) setTimeout(() => start(attempt + 1), 100);      // the canvas mounts after the models are ready
+    };
+    start(0);
   });
   return (
     <View style={{ flex: 1, backgroundColor: '#1A1B18' }}>
