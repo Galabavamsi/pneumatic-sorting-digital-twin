@@ -154,9 +154,26 @@ In AR: point at a station and hold the trigger to carry it. While holding, the t
 (left / right) and moves it nearer or further (up / down), A / X makes it smaller, B / Y larger,
 and the grip sets it back to full size. Where a station was put is not remembered between sessions.
 
-WebXR only runs on `https` or `localhost`. Over USB, `quest-usb.cmd` in `Dashboard/app` forwards
-the development server to the headset and opens the page there. For use away from the rig PC the
-web app has to be hosted on https (not done yet).
+WebXR only runs on `https` or `localhost`. The hosted site (`https://rig-monitor.vercel.app/?ar`)
+works in the Quest browser with no cable. To try local changes, `quest-usb.cmd` in `Dashboard/app`
+forwards the development server to the headset over USB and opens the page there.
+
+### Quest app
+
+`Dashboard/quest-app` packages the hosted site as an installable Quest app (a Trusted Web Activity
+made with Meta's Bubblewrap, package `app.vercel.rigmonitor.quest`). It shows the same site in its
+own window, so a new deployment of the site updates the app without a reinstall.
+
+- `twa-manifest.json` is the project; the site's `public/manifest.json` and
+  `public/.well-known/assetlinks.json` (which names the signing certificate) belong to it.
+- `android.keystore` and `signing.local.txt` (its password) are **not in git**. Keep them: an
+  update can only be installed over the app if it is signed with the same key.
+- Rebuild: `bubblewrap update --skipVersionUpgrade`, replace `jcenter()` with `mavenCentral()` in
+  `build.gradle`, `gradlew.bat assembleRelease`, then `zipalign` and `apksigner` from Android
+  build-tools 34 (`bubblewrap build` fails on Windows with current Node: "spawn EINVAL").
+  The JDK and Android SDK paths are in `~/.bubblewrap/config.json`.
+- Install: `adb install -r rig-monitor-quest.apk`; it appears under **Unknown sources** in the
+  headset's app library.
 
 **Status on 2026-11-19:** checked in a desktop browser (layout, labels, live / simulated feeds),
 and entering AR was confirmed on a Quest 3 over USB. Each control (carry, turn, resize) has not

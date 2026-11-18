@@ -13,3 +13,4 @@ gradle.properties
 *.idsig
 manifest-checksum.txt
 store_icon.png
+gradle-build.log
