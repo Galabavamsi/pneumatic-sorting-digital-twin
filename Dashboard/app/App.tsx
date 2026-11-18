@@ -35,6 +35,9 @@ function arFromAddress(): ArPreset | null | undefined {
   return STATIONS.some((s) => s.id === value) ? { kits: [value], scale: 1 } : null;
 }
 
+// '&auto=1' asks the AR view to start the headset session by itself (the installed Quest app).
+const arAuto = Platform.OS === 'web' && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('auto') === '1';
+
 export default function App() {
   const p = usePalette();
   const [fontsLoaded] = useFonts({
@@ -59,7 +62,7 @@ export default function App() {
   }
 
   if (ar !== undefined) {
-    return <ArView p={p} initial={ar} onClose={() => setAr(undefined)} />;
+    return <ArView p={p} initial={ar} auto={arAuto} onClose={() => setAr(undefined)} />;
   }
 
   const machine = openId ? (machines.find((m) => m.id === openId) ?? null) : null;

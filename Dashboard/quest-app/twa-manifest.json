@@ -12,27 +12,37 @@
   "navigationDividerColorDark": "#121311",
   "backgroundColor": "#121311",
   "enableNotifications": false,
-  "startUrl": "/?ar",
+  "startUrl": "/?ar=all&auto=1",
   "iconUrl": "https://rig-monitor.vercel.app/icon-1024.png",
   "splashScreenFadeOutDuration": 300,
-  "signingKey": { "path": "./android.keystore", "alias": "android" },
-  "appVersionName": "1",
-  "appVersionCode": 1,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  },
+  "appVersionName": "2",
+  "appVersionCode": 2,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://rig-monitor.vercel.app/manifest.json",
   "fallbackType": "customtabs",
   "features": {},
-  "alphaDependencies": { "enabled": false },
+  "alphaDependencies": {
+    "enabled": false
+  },
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": true,
-  "horizonOSAppMode": "2D",
+  "horizonOSAppMode": "immersive",
   "fullScopeUrl": "https://rig-monitor.vercel.app/",
   "minSdkVersion": 23,
   "orientation": "landscape",
-  "fingerprints": [{ "name": "upload", "value": "B6:E6:57:4B:3E:66:38:DA:7C:F3:F5:E2:40:25:58:7C:D0:6A:74:CE:01:90:02:89:2D:BC:18:61:7F:35:E0:88" }],
+  "fingerprints": [
+    {
+      "name": "upload",
+      "value": "B6:E6:57:4B:3E:66:38:DA:7C:F3:F5:E2:40:25:58:7C:D0:6A:74:CE:01:90:02:89:2D:BC:18:61:7F:35:E0:88"
+    }
+  ],
   "additionalTrustedOrigins": [],
   "retainedBundles": [],
-  "appVersion": "1"
+  "appVersion": "2"
 }

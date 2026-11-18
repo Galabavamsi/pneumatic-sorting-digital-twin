@@ -30,7 +30,8 @@ export type ArPreset = { kits: string[]; scale: number };
 
 type Info = { name: string; title: string; live: boolean; state: string; step: string };
 type Loaded = { id: string; def: TwinDef; built: Built; size: THREE.Vector3; shift: THREE.Vector3 };
-type Entry = { holder: THREE.Group; proxy: THREE.Mesh; hot: boolean };
+type Place = { position: [number, number, number]; yaw: number; scale: number };
+type Entry = { holder: THREE.Group; proxy: THREE.Mesh; hot: boolean; name: string; azimuth: number; home: Place };
 type Registry = Map<string, Entry>;
 
 const STATE_WORD: Record<string, string> = { running: 'Running', idle: 'Idle', homing: 'Homing', fault: 'Fault', unknown: 'Unknown program' };
@@ -137,11 +138,11 @@ function drawLabel(canvas: HTMLCanvasElement, info: Info, scale: number, hint: b
   g.fillText(hint ? 'Trigger: carry · stick: turn, near / far · A B: size · grip: full size' : size, 26, 178, LABEL_W - 52);
 }
 
-// The "Exit AR" button that floats near the viewer during a session.
+// The panels that float near the viewer during a session: "Exit AR" and "Show".
 const EXIT_W = 0.2;
 const EXIT_H = 0.07;
 
-function drawExit(canvas: HTMLCanvasElement, hot: boolean) {
+function drawPanel(canvas: HTMLCanvasElement, text: string, hot: boolean) {
   const g = canvas.getContext('2d');
   if (!g) return;
   g.clearRect(0, 0, canvas.width, canvas.height);
@@ -156,7 +157,7 @@ function drawExit(canvas: HTMLCanvasElement, hot: boolean) {
   g.font = '600 62px BarlowCondensed_600SemiBold, "Arial Narrow", sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText('EXIT AR', canvas.width / 2, canvas.height / 2 + 4);
+  g.fillText(text, canvas.width / 2, canvas.height / 2 + 4, canvas.width - 40);
 }
 
 // ---------------------------------------------------------------- one station
@@ -169,7 +170,7 @@ function Kit({
 }: {
   loaded: Loaded;
   feed: { live: React.MutableRefObject<Live>; info: React.MutableRefObject<Info> };
-  place: { position: [number, number, number]; yaw: number; scale: number };
+  place: Place;
   registry: Registry;
   p: Palette;
 }) {
@@ -203,12 +204,12 @@ function Kit({
   }, [parts, place]);
 
   useEffect(() => {
-    const entry: Entry = { holder: parts.holder, proxy: parts.proxy, hot: false };
+    const entry: Entry = { holder: parts.holder, proxy: parts.proxy, hot: false, name: feed.info.current.name, azimuth: def.azimuth, home: place };
     registry.set(id, entry);
     return () => {
       registry.delete(id);
     };
-  }, [id, parts, registry]);
+  }, [id, parts, registry, feed, def, place]);
 
   useFrame(() => {
     const entry = registry.get(id);
@@ -244,19 +245,45 @@ const deadzone = (v: number | undefined) => (v !== undefined && Math.abs(v) > 0.
 
 function Controllers({ registry }: { registry: Registry }) {
   const { gl, scene, camera } = useThree();
-  const hands = useRef<{ space: THREE.Object3D; ray: THREE.Line; source: any; grab: Grab | null; over: { id: string; dist: number; point: THREE.Vector3 } | null; overExit: boolean }[]>([]);
+  const hands = useRef<{ space: THREE.Object3D; ray: THREE.Line; source: any; grab: Grab | null; over: { id: string; dist: number; point: THREE.Vector3 } | null; panel: 'exit' | 'show' | null }[]>([]);
 
   // "Exit AR": a small panel that stays within reach, down and to the left of the view
   const exit = useMemo(() => {
     const canvas = document.createElement('canvas');
     canvas.width = 400;
     canvas.height = 140;
-    drawExit(canvas, false);
+    drawPanel(canvas, 'EXIT AR', false);
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(EXIT_W, EXIT_H), new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide }));
     mesh.visible = false;
-    return { mesh, canvas, texture, hot: false, placed: false, head: new THREE.Vector3(), want: new THREE.Vector3(), flat: new THREE.Vector3() };
+
+    // above it: which stations are shown. It steps through all of them, then each one alone at full size.
+    const showCanvas = document.createElement('canvas');
+    showCanvas.width = 400;
+    showCanvas.height = 140;
+    drawPanel(showCanvas, 'SHOW: ALL', false);
+    const showTexture = new THREE.CanvasTexture(showCanvas);
+    showTexture.colorSpace = THREE.SRGBColorSpace;
+    const show = new THREE.Mesh(new THREE.PlaneGeometry(EXIT_W, EXIT_H), new THREE.MeshBasicMaterial({ map: showTexture, transparent: true, side: THREE.DoubleSide }));
+    show.position.y = EXIT_H + 0.015;
+    mesh.add(show);
+    return {
+      mesh,
+      canvas,
+      texture,
+      hot: false,
+      placed: false,
+      head: new THREE.Vector3(),
+      want: new THREE.Vector3(),
+      flat: new THREE.Vector3(),
+      show,
+      showCanvas,
+      showTexture,
+      showHot: false,
+      showText: 'SHOW: ALL',
+      only: null as string | null,
+    };
   }, []);
 
   useEffect(() => {
@@ -276,7 +303,7 @@ function Controllers({ registry }: { registry: Registry }) {
       );
       space.add(ray);
       scene.add(space);
-      return { space, ray, source: null as any, grab: null as Grab | null, over: null as { id: string; dist: number; point: THREE.Vector3 } | null, overExit: false };
+      return { space, ray, source: null as any, grab: null as Grab | null, over: null as { id: string; dist: number; point: THREE.Vector3 } | null, panel: null as 'exit' | 'show' | null };
     });
     hands.current = list;
 
@@ -294,8 +321,31 @@ function Controllers({ registry }: { registry: Registry }) {
         hand.over = null;
       });
       listen('selectstart', () => {
-        if (hand.overExit) {
+        if (hand.panel === 'exit') {
           gl.xr.getSession()?.end();
+          return;
+        }
+
+        if (hand.panel === 'show') {
+          // all -> the first station alone -> the next ... -> all
+          const ids = [...registry.keys()];
+          const next = exit.only === null ? 0 : ids.indexOf(exit.only) + 1;
+          exit.only = next < ids.length ? ids[next] : null;
+          registry.forEach((entry, id) => {
+            const holder = entry.holder;
+            holder.visible = exit.only === null || exit.only === id;
+            if (exit.only === null) {
+              holder.position.set(...entry.home.position);
+              holder.rotation.set(0, entry.home.yaw, 0);
+              holder.scale.setScalar(entry.home.scale);
+            } else if (exit.only === id) {
+              // alone: full size, at table height, straight ahead of the viewer and facing them
+              holder.position.copy(exit.head).addScaledVector(exit.flat, 0.9);
+              holder.position.y = TABLE;
+              holder.rotation.set(0, -Math.atan2(exit.flat.x, -exit.flat.z) - entry.azimuth, 0);
+              holder.scale.setScalar(1);
+            }
+          });
           return;
         }
 
@@ -354,10 +404,12 @@ function Controllers({ registry }: { registry: Registry }) {
     }
 
     let exitHot = false;
+    let showHot = false;
+    exit.show.visible = registry.size > 1;
 
     for (const hand of hands.current) {
       hand.ray.visible = presenting;
-      hand.overExit = false;
+      hand.panel = null;
       if (!presenting || !hand.space.visible) {
         hand.over = null;
         continue;
@@ -390,16 +442,19 @@ function Controllers({ registry }: { registry: Registry }) {
       caster.set(origin, dir);
       const proxies: THREE.Object3D[] = [];
       registry.forEach((entry) => {
+        if (!entry.holder.visible) return;
         entry.holder.updateWorldMatrix(true, true);
         proxies.push(entry.proxy);
       });
-      exit.mesh.updateWorldMatrix(true, false);
+      exit.mesh.updateWorldMatrix(true, true);
       proxies.push(exit.mesh);
+      if (exit.show.visible) proxies.push(exit.show);
       const hit = caster.intersectObjects(proxies, false)[0];
-      if (hit && hit.object === exit.mesh) {
+      if (hit && (hit.object === exit.mesh || hit.object === exit.show)) {
         hand.over = null;
-        hand.overExit = true;
-        exitHot = true;
+        hand.panel = hit.object === exit.mesh ? 'exit' : 'show';
+        if (hand.panel === 'exit') exitHot = true;
+        else showHot = true;
         hand.ray.scale.z = hit.distance;
         continue;
       }
@@ -414,8 +469,16 @@ function Controllers({ registry }: { registry: Registry }) {
 
     if (exitHot !== exit.hot) {
       exit.hot = exitHot;
-      drawExit(exit.canvas, exitHot);
+      drawPanel(exit.canvas, 'EXIT AR', exitHot);
       exit.texture.needsUpdate = true;
+    }
+
+    const showText = 'SHOW: ' + (exit.only === null ? 'ALL' : (registry.get(exit.only)?.name ?? '').toUpperCase());
+    if (showHot !== exit.showHot || showText !== exit.showText) {
+      exit.showHot = showHot;
+      exit.showText = showText;
+      drawPanel(exit.showCanvas, showText, showHot);
+      exit.showTexture.needsUpdate = true;
     }
   });
 
@@ -453,7 +516,7 @@ function layout(defs: Loaded[], scale: number) {
 }
 
 // ------------------------------------------------------------------ the page
-export function ArView({ p, initial, onClose }: { p: Palette; initial?: ArPreset | null; onClose: () => void }) {
+export function ArView({ p, initial, auto, onClose }: { p: Palette; initial?: ArPreset | null; auto?: boolean; onClose: () => void }) {
   const [preset, setPreset] = useState<ArPreset | null>(initial ?? null);
 
   if (Platform.OS !== 'web') {
@@ -468,7 +531,7 @@ export function ArView({ p, initial, onClose }: { p: Palette; initial?: ArPreset
     return <Picker p={p} onPick={setPreset} onClose={onClose} />;
   }
 
-  return <Scene key={preset.kits.join(',') + preset.scale} p={p} preset={preset} onBack={() => setPreset(null)} onClose={onClose} />;
+  return <Scene key={preset.kits.join(',') + preset.scale} p={p} preset={preset} auto={auto} onBack={() => setPreset(null)} onClose={onClose} />;
 }
 
 function Button({ p, label, note, onPress, strong, disabled }: { p: Palette; label: string; note?: string; onPress: () => void; strong?: boolean; disabled?: boolean }) {
@@ -539,7 +602,7 @@ function Picker({ p, onPick, onClose }: { p: Palette; onPick: (preset: ArPreset)
   );
 }
 
-function Scene({ p, preset, onBack, onClose }: { p: Palette; preset: ArPreset; onBack: () => void; onClose: () => void }) {
+function Scene({ p, preset, auto, onBack, onClose }: { p: Palette; preset: ArPreset; auto?: boolean; onBack: () => void; onClose: () => void }) {
   const feeds = useStationFeeds(preset.kits);
   const [loaded, setLoaded] = useState<Loaded[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -593,7 +656,7 @@ function Scene({ p, preset, onBack, onClose }: { p: Palette; preset: ArPreset; o
 
   const places = useMemo(() => (loaded.length ? layout(loaded, preset.scale) : []), [loaded, preset.scale]);
 
-  const enter = async () => {
+  const enter = async (quiet = false) => {
     const gl = renderer.current;
     const xr = (navigator as any).xr;
     if (!gl || !xr) return;
@@ -604,11 +667,23 @@ function Scene({ p, preset, onBack, onClose }: { p: Palette; preset: ArPreset; o
       await gl.xr.setSession(session);
       setPresenting(true);
     } catch (e) {
-      setError('The headset did not start AR: ' + String((e as Error).message));
+      if (!quiet) setError('The headset did not start AR: ' + String((e as Error).message));
     }
   };
 
   const ready = loaded.length > 0;
+
+  // The installed headset app opens straight into AR: starting the app counts as the
+  // user's go-ahead there. In a browser this attempt is refused and the button is used.
+  const tried = useRef(false);
+  useEffect(() => {
+    if (!auto || tried.current || !ready || supported !== true) return;
+    tried.current = true;
+    const timer = setTimeout(() => {
+      enter(true);
+    }, 300);      // the canvas mounts after the models are ready
+    return () => clearTimeout(timer);
+  });
   return (
     <View style={{ flex: 1, backgroundColor: '#1A1B18' }}>
       <View style={{ flex: 1 }}>
@@ -641,14 +716,14 @@ function Scene({ p, preset, onBack, onClose }: { p: Palette; preset: ArPreset; o
       <View style={{ padding: space.lg, gap: space.md, backgroundColor: p.bg, borderTopWidth: 1, borderTopColor: p.line }}>
         {error && ready ? <Body p={p} style={{ color: p.alert }}>{error}</Body> : null}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.md, alignItems: 'center' }}>
-          <Button p={p} strong label="Enter AR" onPress={enter} disabled={!ready || supported !== true || presenting} />
+          <Button p={p} strong label="Enter AR" onPress={() => enter()} disabled={!ready || supported !== true || presenting} />
           <Button p={p} label="‹ Choose stations" onPress={onBack} />
           <Button p={p} label="Dashboard" onPress={onClose} />
           <View style={{ flex: 1, minWidth: 260 }}>
             <Body p={p} style={{ fontSize: 13, lineHeight: 18, color: p.sub }}>
               {supported === false
                 ? 'This browser has no AR. Open this page in the browser of a Meta Quest headset; what you see here is a preview.'
-                : 'In AR: point at a station and hold the trigger to carry it. While holding, the thumbstick turns it and moves it nearer or further, A / B changes its size, the grip sets full size. To leave, point at the Exit AR panel down to your left and pull the trigger.'}
+                : 'In AR: point at a station and hold the trigger to carry it. While holding, the thumbstick turns it and moves it nearer or further, A / B changes its size, the grip sets full size. Down to your left are two panels: Show steps through all stations and each one alone at full size, Exit AR leaves.'}
             </Body>
           </View>
         </View>
