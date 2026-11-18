@@ -42,9 +42,35 @@ export type TwinDef = {
   // can drop by one each time the feed cylinder has gone out and come back
   stack?: { order: string[]; pitch: number; feed: string };
   rest: V3[];                  // where parts pile up, per bin
+  // What each PLC step commands (actuator id -> travel 0..1) and the orders a cycle runs in.
+  // The live feed is sampled every 250-400 ms, so short steps are often missed; with this
+  // the viewer plays the skipped steps itself, so the workpiece logic sees every step.
+  drive?: Drive;
   // v: eased travel (0..1) of each actuator, by the snapshot's actuator id
   pose: (groups: Record<string, THREE.Group>, v: Record<string, number>) => void;
   part: (s: PartState, v: Record<string, number>, step: number, def: TwinDef, dt: number) => void;
+};
+
+export type Drive = {
+  commands: Record<number, Record<string, number>>;
+  paths: { steps: number[]; material?: number }[];      // one per branch, from the waiting step to the count
+};
+
+// The steps the machine must have passed through going from `from` to `to`, not counting
+// either; null when `to` is not reachable along a cycle (a fault, homing, idle).
+export const stepsBetween = (drive: Drive, from: number, to: number, material: number): number[] | null => {
+  const paths = [...drive.paths].sort((a, b) => Number(b.material === material) - Number(a.material === material));
+  for (const p of paths) {
+    const a = p.steps.indexOf(from);
+    const b = p.steps.indexOf(to);
+    if (a >= 0 && b > a) return p.steps.slice(a + 1, b);
+  }
+
+  // into the next cycle
+  const pa = paths.find((p) => p.steps.includes(from));
+  const pb = drive.paths.find((p) => p.steps.includes(to));      // the new job's branch is not known yet
+  if (pa && pb) return [...pa.steps.slice(pa.steps.indexOf(from) + 1), ...pb.steps.slice(0, pb.steps.indexOf(to))];
+  return null;
 };
 
 // Where the n-th job in a tray comes to rest: two side by side, then the next layer.
@@ -89,6 +115,14 @@ const kit1: TwinDef = {
     [-103, -55, 0],      // off the upper level, towards -X
     [-20, -131, 0],      // off the lower level, towards -Y
   ],
+  // PLC/Kit1/Kit1_Sort.st
+  drive: {
+    commands: { 3: { '1A': 1 }, 4: { '1A': 0 }, 6: { '2A': 1 }, 7: { '2A': 0 }, 8: { '4A': 1 }, 9: { '3A': 1 }, 10: { '3A': 0 }, 11: { '4A': 0 } },
+    paths: [
+      { material: 2, steps: [2, 3, 4, 5, 6, 7, 12] },
+      { material: 1, steps: [2, 3, 4, 5, 8, 9, 10, 11, 12] },
+    ],
+  },
   pose(g, v) {
     g.feed.position.y = -40 * (v['1A'] ?? 0);
     g.upper.position.x = -50 * (v['2A'] ?? 0);
@@ -159,6 +193,14 @@ const kit2: TwinDef = {
     [-2, -150, 5],       // Tray 1, straight on from Stamp 1
     [-134, -75, 5],      // Tray 2, straight on from Stamp 2
   ],
+  // PLC/Kit2/Kit2_Sort.st
+  drive: {
+    commands: { 11: { FEED: 1 }, 12: { FEED: 0 }, 20: { SA: 1 }, 21: { SA: 0 }, 30: { XFER: 1 }, 31: { XFER: 0 }, 33: { SB: 1 }, 34: { SB: 0 } },
+    paths: [
+      { material: 1, steps: [10, 11, 12, 13, 20, 21, 40] },
+      { material: 2, steps: [10, 11, 12, 13, 30, 31, 32, 33, 34, 40] },
+    ],
+  },
   pose(g, v) {
     g.feed.position.y = -K2_FEED * (v.FEED ?? 0);
     g.transfer.position.x = -K2_ACROSS * (v.XFER ?? 0);
@@ -259,6 +301,18 @@ const kit3: TwinDef = {
     [310, 284, 5],       // Tray 1, under the pulled-in head
     [409, 187, 5],       // Tray 2, a quarter turn away
   ],
+  // PLC/Kit3/Kit3_Sort.st (22 and 24 only run when the head reaches Tray 2 pushed out)
+  drive: {
+    commands: {
+      11: { '1A': 1 }, 12: { '1A': 0 }, 14: { '2A': 1 }, 15: { '2A': 0 }, 16: { '3A': 1 }, 17: { '4A': 1 },
+      18: { VC: 1 }, 19: { '4A': 0 }, 20: { '3A': 0 }, 21: { '5A': 1 }, 22: { '3A': 1 }, 23: { VC: 0 }, 24: { '3A': 0 }, 25: { '5A': 0 },
+    },
+    paths: [
+      { material: 2, steps: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 23, 24, 25, 26] },
+      { material: 1, steps: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26] },
+      { material: 1, steps: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26] },
+    ],
+  },
   pose(g, v) {
     g.feed.position.x = 50 * (v['1A'] ?? 0);
     g.stamp.position.z = -45 * (v['2A'] ?? 0);

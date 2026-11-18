@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Palette, radius, space } from '../theme';
 import type { Snapshot } from '../types';
-import { PartState, pileCounts, pileSpot, TwinDef, TWINS } from '../kits/twins';
+import { PartState, pileCounts, pileSpot, stepsBetween, TwinDef, TWINS } from '../kits/twins';
 import { Card, Body, Label } from './ui';
 
 // 3D view of a station: the kit's own CAD model (the one the Unity twin uses),
@@ -146,6 +146,8 @@ function Rig({ built, def, live, p }: { built: Built; def: TwinDef; live: React.
   const flying = useRef<Flyer[]>([]);
   const fall = useRef(0);
   const mag = useRef({ taken: 0, shown: 0, out: false });      // magazine: jobs taken, eased drop, pusher has been out
+  // the step the model is showing, and the steps still to play to catch up with the PLC
+  const played = useRef({ live: null as number | null, step: 0, queue: [] as number[], time: 0, travel: {} as Record<string, number>, material: 0 });
   const colors = useMemo(
     () => ({
       metal: new THREE.Color('#C9CDD0'),
@@ -171,23 +173,51 @@ function Rig({ built, def, live, p }: { built: Built; def: TwinDef; live: React.
     const t = live.current;
     const v = eased.current;
     const s = state.current;
-    const step = dt * 1.6;       // full travel in about 0.6 s
-    for (const id of Object.keys(t.travel)) {
-      const now = v[id] ?? t.travel[id];
-      const target = t.travel[id];
+    const q = played.current;
+
+    // Steps the feed skipped are queued and played one after another, each until its
+    // cylinders have arrived; the live outputs take over again once the queue is empty.
+    if (q.live === null) {
+      q.step = q.live = t.step;
+    } else if (t.step !== q.live) {
+      q.live = t.step;
+      if (t.material !== 0) q.material = t.material;
+      const from = q.queue.length ? q.queue[q.queue.length - 1] : q.step;
+      const skipped = def.drive ? stepsBetween(def.drive, from, t.step, q.material) : null;
+      q.queue.push(...(skipped ?? []), t.step);
+      if (q.queue.length > 24) q.queue = [t.step];      // far behind (a hidden tab): just jump
+    }
+
+    q.time += dt;
+    const arrived = (cmd: Record<string, number> | undefined) => !cmd || Object.keys(cmd).every((id) => Math.abs((v[id] ?? 0) - cmd[id]) < 0.01);
+    if (q.queue.length && q.time >= 0.08 && arrived(def.drive?.commands[q.step])) {
+      q.step = q.queue.shift()!;
+      q.time = 0;
+      Object.assign(q.travel, def.drive?.commands[q.step]);
+    }
+
+    const catchingUp = q.queue.length > 0;
+    if (!catchingUp) Object.assign(q.travel, t.travel);
+    const travel = catchingUp ? q.travel : t.travel;
+    const step = dt * (catchingUp && q.queue.length > 1 ? 3.2 : 1.6);       // full travel in about 0.6 s
+    for (const id of Object.keys(travel)) {
+      const now = v[id] ?? travel[id];
+      const target = travel[id];
       v[id] = Math.abs(target - now) <= step ? target : now + Math.sign(target - now) * step;
     }
 
     def.pose(built.groups, v);
     if (built.highlightMaterial && def.highlight) {
-      built.highlightMaterial.color.copy((t.travel[def.highlight.actuator] ?? 0) > 0.5 ? colors.on : colors.off);
+      built.highlightMaterial.color.copy((travel[def.highlight.actuator] ?? 0) > 0.5 ? colors.on : colors.off);
     }
 
-    if (t.material !== 0) s.material = t.material;
+    // the material read belongs to the newest job, so it waits until the replay has caught up
+    if (t.material !== 0) q.material = t.material;
+    if (t.material !== 0 && !catchingUp) s.material = t.material;
     pileCounts[0] = dropped.current[0].length;
     pileCounts[1] = dropped.current[1].length;
     const before = s.mode;
-    def.part(s, v, t.step, def, dt);
+    def.part(s, v, q.step, def, dt);
     const d = s.data;
 
     // pieces that travel with the workpiece (Kit 5's inserts)
@@ -291,7 +321,7 @@ function Rig({ built, def, live, p }: { built: Built; def: TwinDef; live: React.
 
   // development aid: lets the motion be sampled from the browser console
   if (__DEV__) {
-    (globalThis as { __twin?: unknown }).__twin = { state: state.current, dropped: dropped.current, flying, mag: mag.current, eased: eased.current, live };
+    (globalThis as { __twin?: unknown }).__twin = { state: state.current, dropped: dropped.current, flying, mag: mag.current, eased: eased.current, live, played: played.current };
   }
 
   return <primitive object={built.root} />;
