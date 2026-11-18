@@ -150,9 +150,19 @@ install. `src/components/ArView.tsx` reuses the models and motion of the 3D view
 A station whose program is in the controller follows the live feed; every other station plays the
 in-app simulation. Each label says which ("Live from the PLC" / "Simulated").
 
-In AR: point at a station and hold the trigger to carry it. While holding, the thumbstick turns it
-(left / right) and moves it nearer or further (up / down), A / X makes it smaller, B / Y larger,
-and the grip sets it back to full size. Where a station was put is not remembered between sessions.
+In AR, with bare hands (hand tracking) or the controllers:
+
+- point at a station and pinch (or hold the trigger) to carry it;
+- take it with both hands and pull them apart or turn them to resize and turn it;
+- a quick pinch opens its information board: step, part, job counters, cycle times, log;
+- the menu down to the viewer's left can be pinched or pressed with a fingertip: Show (all
+  stations, or each one alone), Info, Full size, Reset places, Exit AR;
+- controllers add: thumbstick to turn and reel in or out, A / X and B / Y to resize, grip for
+  full size.
+
+Where a station is put is held to the room with a WebXR anchor and kept as a persistent anchor
+(its id and the station's size are in the browser's local storage), so it is there again in the
+next session. "Reset places" drops them. `&info=1` in the address opens every board from the start.
 
 WebXR only runs on `https` or `localhost`. The hosted site (`https://rig-monitor.vercel.app/?ar`)
 works in the Quest browser with no cable. To try local changes, `quest-usb.cmd` in `Dashboard/app`
