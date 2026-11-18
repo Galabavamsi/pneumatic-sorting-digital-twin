@@ -17,12 +17,14 @@ import { Body, Label } from './ui';
 // view on the dashboard. A station that a controller is running follows the live
 // feed; every other station plays the in-app simulation, and each one says which.
 //
-// In the headset: point at a station and hold the trigger (or pinch, with tracked
-// hands) to carry it. With both hands on it, pulling them apart resizes it and
-// turning them turns it. With one controller, the thumbstick turns it and reels it
-// in or out, A / X and B / Y resize it, and the grip sets full size. A quick tap
-// opens the station's information board (jobs, cycle times, log). Where a station
-// is put is held to the room with the headset's anchors and remembered.
+// It is built for bare hands first (hand tracking), and controllers work the same
+// way: point at a station and pinch (or hold the trigger) to carry it. With both
+// hands on it, pulling them apart resizes it and turning them turns it. A quick
+// pinch opens the station's information board (jobs, cycle times, log). The menu
+// beside the viewer can be pinched from a distance or pressed with a fingertip.
+// Controllers add: thumbstick to turn and reel in or out, A / X and B / Y to
+// resize, grip for full size. Where a station is put is held to the room with the
+// headset's anchors and remembered.
 
 const MM = 0.001;                    // CAD millimetres -> metres
 const ROOT_SCALE = 0.1;              // the scale build() gives its root (mm -> cm)
@@ -182,7 +184,7 @@ function drawLabel(canvas: HTMLCanvasElement, info: Info, scale: number, hint: b
   g.fillStyle = INK.sub;
   g.font = '25px Barlow_400Regular, Arial, sans-serif';
   const size = Math.abs(scale - 1) < 0.01 ? 'Full size' : `${Math.round(scale * 100)} % of full size`;
-  g.fillText(hint ? 'Hold trigger: carry · both hands: resize, turn · tap: info' : size, 26, 178, LABEL_W - 52);
+  g.fillText(hint ? 'Pinch and hold: carry · both hands: resize, turn · quick pinch: info' : size, 26, 178, LABEL_W - 52);
 }
 
 // ------------------------------------------------------- the information board
@@ -278,8 +280,8 @@ function drawBoard(canvas: HTMLCanvasElement, info: Info, snap: Snapshot | null)
 }
 
 // The panels that float near the viewer during a session.
-const PANEL_W = 0.2;
-const PANEL_H = 0.07;
+const PANEL_W = 0.23;
+const PANEL_H = 0.078;
 
 function drawPanel(canvas: HTMLCanvasElement, text: string, hot: boolean) {
   const g = canvas.getContext('2d');
@@ -432,8 +434,8 @@ function Kit({ loaded, feed, place, registry, p }: { loaded: Loaded; feed: Feed;
 type Grab = { id: string; dist: number; offset: THREE.Vector3 };
 // Both hands on one station: it is stretched, turned and carried between them.
 type Duo = { id: string; span: number; angle: number; mid: THREE.Vector3; pos: THREE.Vector3; yaw: number; scale: number };
-type PanelKey = 'exit' | 'reset' | 'info' | 'show';
-const PANELS: PanelKey[] = ['exit', 'reset', 'info', 'show'];      // bottom to top
+type PanelKey = 'exit' | 'reset' | 'full' | 'info' | 'show';
+const PANELS: PanelKey[] = ['exit', 'reset', 'full', 'info', 'show'];      // bottom to top
 type Hand = {
   space: THREE.Object3D;
   ray: THREE.Line;
@@ -441,14 +443,21 @@ type Hand = {
   grab: Grab | null;
   over: { id: string; dist: number; point: THREE.Vector3 } | null;
   panel: PanelKey | null;
+  poked: PanelKey | null;        // the panel a fingertip is pressing, so one press counts once
+  joints: any;                   // the tracked hand's joints, when the hand itself is used
+  cursor: THREE.Mesh;            // a dot where the hand points
   downAt: number;
+  downPoint: THREE.Vector3;
   origin: THREE.Vector3;
   dir: THREE.Vector3;
   point: THREE.Vector3;
   live: boolean;
+  fresh: boolean;                // no earlier pointing direction to smooth from
 };
 const deadzone = (v: number | undefined) => (v !== undefined && Math.abs(v) > 0.18 ? v : 0);
-const TAP_MS = 280;
+const TAP_MS = 280;             // a press shorter than this is a tap (controller)
+const PINCH_TAP_MS = 480;       // a pinch takes longer to make and let go
+const TAP_REACH = 0.06;         // and a tap does not travel further than this, metres
 
 function Controllers({ registry }: { registry: Registry }) {
   const { gl, scene, camera } = useThree();
@@ -473,7 +482,7 @@ function Controllers({ registry }: { registry: Registry }) {
       group.add(mesh);
       return { key, canvas, texture, mesh, drawn: '' };
     });
-    return { group, panels, placed: false, only: null as string | null, head: new THREE.Vector3(), want: new THREE.Vector3(), flat: new THREE.Vector3() };
+    return { group, panels, placed: false, only: null as string | null, picked: null as string | null, head: new THREE.Vector3(), want: new THREE.Vector3(), flat: new THREE.Vector3() };
   }, []);
 
   useEffect(() => {
@@ -517,9 +526,19 @@ function Controllers({ registry }: { registry: Registry }) {
         if (entry.holder.visible && !entry.info) allOpen = false;
       });
       registry.forEach((entry) => (entry.info = !allOpen));
+    } else if (key === 'full') {
+      // the station last touched goes to real size; with none touched yet, every station does
+      const one = menu.picked ? registry.get(menu.picked) : undefined;
+      registry.forEach((entry) => {
+        if (one ? entry !== one : !entry.holder.visible) return;
+        entry.target.scale = 1;
+        entry.placed = true;
+        entry.anchorDirty = true;
+      });
     } else if (key === 'reset') {
       // back to the arc in front of the viewer; remembered placements are dropped
       menu.only = null;
+      menu.picked = null;
       registry.forEach((entry, id) => {
         forget(id, entry);
         entry.holder.visible = true;
@@ -554,7 +573,29 @@ function Controllers({ registry }: { registry: Registry }) {
       );
       space.add(ray);
       scene.add(space);
-      return { space, ray, source: null, grab: null, over: null, panel: null, downAt: 0, origin: new THREE.Vector3(), dir: new THREE.Vector3(), point: new THREE.Vector3(), live: false };
+      const joints = gl.xr.getHand(i) as THREE.Object3D;      // filled in by the headset while a bare hand is tracked
+      scene.add(joints);
+      const cursor = new THREE.Mesh(new THREE.SphereGeometry(0.009, 16, 12), new THREE.MeshBasicMaterial({ color: '#ECE9DF' }));
+      cursor.visible = false;
+      scene.add(cursor);
+      return {
+        space,
+        ray,
+        source: null,
+        grab: null,
+        over: null,
+        panel: null,
+        poked: null,
+        joints,
+        cursor,
+        downAt: 0,
+        downPoint: new THREE.Vector3(),
+        origin: new THREE.Vector3(),
+        dir: new THREE.Vector3(),
+        point: new THREE.Vector3(),
+        live: false,
+        fresh: true,
+      };
     });
     hands.current = list;
 
@@ -578,7 +619,8 @@ function Controllers({ registry }: { registry: Registry }) {
           return;
         }
 
-        if (performance.now() - hand.downAt < TAP_MS) {
+        const quick = performance.now() - hand.downAt < (hand.source?.hand ? PINCH_TAP_MS : TAP_MS);
+        if (quick && hand.point.distanceTo(hand.downPoint) < TAP_REACH) {
           entry.info = !entry.info;      // a quick tap opens or closes the station's board
         } else {
           entry.placed = true;
@@ -604,12 +646,15 @@ function Controllers({ registry }: { registry: Registry }) {
         hand.downAt = performance.now();
         hand.grab = { id: over.id, dist: over.dist, offset: entry.target.pos.clone().sub(over.point) };
         hand.point.copy(over.point);
+        hand.downPoint.copy(over.point);
+        menu.picked = over.id;
       });
       listen('selectend', release);
       listen('squeezestart', () => {
         const target = hand.grab?.id ?? hand.over?.id;
         const entry = target ? registry.get(target) : undefined;
-        if (!entry) return;
+        if (!entry || !target) return;
+        menu.picked = target;
         entry.target.scale = 1;
         entry.placed = true;
         entry.anchorDirty = true;
@@ -621,6 +666,8 @@ function Controllers({ registry }: { registry: Registry }) {
       list.forEach((hand) => {
         hand.space.remove(hand.ray);
         scene.remove(hand.space);
+        scene.remove(hand.joints);
+        scene.remove(hand.cursor);
       });
       hands.current = [];
     };
@@ -643,10 +690,10 @@ function Controllers({ registry }: { registry: Registry }) {
       menu.flat.set(0, 0, -1).transformDirection(camera.matrixWorld).setY(0);
       if (menu.flat.lengthSq() > 0.01) {
         menu.flat.normalize();
-        menu.want.copy(menu.head).addScaledVector(menu.flat, 0.55);
+        menu.want.copy(menu.head).addScaledVector(menu.flat, 0.5);
         menu.want.x += menu.flat.z * 0.32;        // to the viewer's left
         menu.want.z -= menu.flat.x * 0.32;
-        menu.want.y = Math.max(0.3, menu.head.y - 0.5);
+        menu.want.y = Math.max(0.3, menu.head.y - 0.62);
         if (!menu.placed) {
           menu.group.position.copy(menu.want);
           menu.placed = true;
@@ -739,14 +786,24 @@ function Controllers({ registry }: { registry: Registry }) {
     for (const hand of hands.current) {
       hand.live = presenting && hand.space.visible;
       hand.ray.visible = hand.live;
+      hand.cursor.visible = false;
       hand.panel = null;
       if (!hand.live) {
         hand.over = null;
+        hand.fresh = true;
+        hand.poked = null;
         continue;
       }
 
-      hand.origin.setFromMatrixPosition(hand.space.matrixWorld);
-      hand.dir.set(0, 0, -1).transformDirection(hand.space.matrixWorld);
+      // A bare hand's pointing ray trembles, more so at a distance, so it is eased.
+      const bare = !!hand.source?.hand;
+      const ease = bare && !hand.fresh ? 1 - Math.exp(-dt * 20) : 1;
+      hand.fresh = false;
+      hand.origin.lerp(v.setFromMatrixPosition(hand.space.matrixWorld), ease);
+      hand.dir.lerp(v.set(0, 0, -1).transformDirection(hand.space.matrixWorld), ease).normalize();
+      // the drawn ray follows the steadied one, and is shorter and fainter for a bare hand
+      hand.ray.quaternion.copy(hand.space.getWorldQuaternion(q).invert()).multiply(q.setFromUnitVectors(v.set(0, 0, -1), hand.dir));
+      (hand.ray.material as THREE.LineBasicMaterial).opacity = bare ? 0.35 : 0.7;
       if (hand.grab) {
         if (!registry.get(hand.grab.id)) hand.grab = null;
         else hand.point.copy(hand.origin).addScaledVector(hand.dir, hand.grab.dist);
@@ -774,8 +831,12 @@ function Controllers({ registry }: { registry: Registry }) {
       both.target.pos.copy(d.pos).sub(d.mid).multiplyScalar(scale / d.scale).applyAxisAngle(up, turned).add(v);
       both.target.pos.y = Math.max(0, both.target.pos.y);
       both.hot = true;
-      a.ray.scale.z = a.grab.dist;
-      b.ray.scale.z = b.grab.dist;
+      for (const hand of [a, b]) {
+        hand.ray.scale.z = hand.grab ? hand.grab.dist : 1;
+        hand.cursor.position.copy(hand.point);
+        hand.cursor.visible = true;
+      }
+
       return;
     }
 
@@ -801,6 +862,31 @@ function Controllers({ registry }: { registry: Registry }) {
         entry.target.pos.y = Math.max(0, entry.target.pos.y);
         entry.hot = true;
         hand.ray.scale.z = grab.dist;
+        hand.cursor.position.copy(hand.point);
+        hand.cursor.visible = true;
+        continue;
+      }
+
+      // a fingertip pushed into a panel presses it
+      const tip = hand.source?.hand ? hand.joints?.joints?.['index-finger-tip'] : null;
+      let touching: PanelKey | null = null;
+      if (tip && tip.visible !== false) {
+        menu.group.updateWorldMatrix(true, true);
+        for (const mesh of menuMeshes) {
+          v.copy(tip.position);
+          mesh.worldToLocal(v);
+          if (Math.abs(v.x) < PANEL_W / 2 && Math.abs(v.y) < PANEL_H / 2 && v.z < 0.05 && v.z > -0.05) {
+            hand.panel = mesh.userData.panel as PanelKey;      // lights up as the finger comes close
+            if (v.z < 0.012) touching = hand.panel;
+          }
+        }
+      }
+
+      if (touching && hand.poked !== touching) press(touching);
+      if (touching || !hand.panel) hand.poked = touching;
+      if (hand.panel) {
+        hand.over = null;
+        hand.ray.scale.z = 0.02;
         continue;
       }
 
@@ -813,9 +899,11 @@ function Controllers({ registry }: { registry: Registry }) {
       });
       menu.group.updateWorldMatrix(true, true);
       const hit = caster.intersectObjects(targets, false)[0];
-      hand.ray.scale.z = hit ? hit.distance : 3;
+      hand.ray.scale.z = hit ? hit.distance : hand.source?.hand ? 0.5 : 3;
       hand.over = null;
       if (!hit) continue;
+      hand.cursor.position.copy(hit.point);
+      hand.cursor.visible = true;
       if (hit.object.userData.panel) {
         hand.panel = hit.object.userData.panel as PanelKey;
       } else {
@@ -841,6 +929,8 @@ function Controllers({ registry }: { registry: Registry }) {
           ? 'EXIT AR'
           : panel.key === 'reset'
             ? 'RESET PLACES'
+            : panel.key === 'full'
+              ? 'FULL SIZE'
             : panel.key === 'info'
               ? boards > 0 && boards === shown
                 ? 'INFO: ON'
@@ -1100,7 +1190,7 @@ function Scene({ p, preset, auto, onBack, onClose }: { p: Palette; preset: ArPre
             <Body p={p} style={{ fontSize: 13, lineHeight: 18, color: p.sub }}>
               {supported === false
                 ? 'This browser has no AR. Open this page in the browser of a Meta Quest headset; what you see here is a preview.'
-                : 'In AR: point at a station and hold the trigger to carry it; hold it with both hands and pull them apart or turn them to resize and turn it. A quick tap opens its information board. Where you put a station is remembered. The panels down to your left show one station or all, open the boards, reset the places and leave AR.'}
+                : 'In AR, with your hands or the controllers: point at a station and pinch (or hold the trigger) to carry it; take it with both hands and pull them apart or turn them to resize and turn it. A quick pinch opens its information board. Where you put a station is remembered. The panels down to your left can be pinched or pressed with a finger: show one station or all, boards, full size, reset the places, leave AR.'}
             </Body>
           </View>
         </View>
