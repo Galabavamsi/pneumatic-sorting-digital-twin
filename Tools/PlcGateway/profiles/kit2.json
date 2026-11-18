@@ -1,0 +1,93 @@
+{
+  "id": "kit2",
+  "name": "Kit 2",
+  "title": "Two-station stamp and sort",
+  "description": "1A feeds a job to Stamp 1, where the inductive sensor sees metal. Metal is stamped there by 3A; plastic is pushed across by 2A to Stamp 2 and stamped by 4A. Each job stays at its stamp until the next job of that kind pushes it into its tray.",
+  "probe": "K2_STEP",
+  "vars": {
+    "step": "K2_STEP",
+    "fault": "K2_FAULTCODE",
+    "material": "K2_MATERIAL",
+    "heartbeat": "K2_HEARTBEAT",
+    "running": "K2_ST_AUTORUNNING",
+    "faulted": "K2_ST_FAULTED",
+    "parts": "K2_PARTSDONE"
+  },
+  "cycleStartStep": 11,
+  "steps": [
+    { "id": 0, "name": "Idle" },
+    { "id": 1, "name": "Homing" },
+    { "id": 10, "name": "Waiting for a job" },
+    { "id": 11, "name": "Feed to Stamp 1" },
+    { "id": 12, "name": "Feed back" },
+    { "id": 13, "name": "Detect material" },
+    { "id": 20, "name": "Stamp 1 down" },
+    { "id": 21, "name": "Stamp 1 up" },
+    { "id": 30, "name": "Transfer to Stamp 2" },
+    { "id": 31, "name": "Transfer back" },
+    { "id": 32, "name": "Check job at Stamp 2" },
+    { "id": 33, "name": "Stamp 2 down" },
+    { "id": 34, "name": "Stamp 2 up" },
+    { "id": 40, "name": "Job counted" },
+    { "id": 90, "name": "Fault" }
+  ],
+  "sequence": [11, 12, 13, 20, 21, 30, 31, 32, 33, 34, 40],
+  "faults": {
+    "1": "Emergency stop pressed",
+    "2": "Feed cylinder 1A did not push out",
+    "3": "Feed cylinder 1A did not pull in",
+    "4": "Job not seen at Stamp 2",
+    "5": "Transfer cylinder 2A did not push out",
+    "6": "Transfer cylinder 2A did not pull in",
+    "7": "Stamp 1 (3A) did not reach its end",
+    "8": "Stamp 2 (4A) did not reach its end",
+    "9": "Homing did not finish"
+  },
+  "materials": { "0": "None", "1": "Metal", "2": "Plastic" },
+  "counters": [
+    { "id": "parts", "label": "Jobs processed", "var": "K2_PARTSDONE" },
+    { "id": "metal", "label": "Metal · Tray 1", "var": "K2_METALCOUNT" },
+    { "id": "plastic", "label": "Plastic · Tray 2", "var": "K2_PLASTICCOUNT" }
+  ],
+  "inputs": [
+    { "id": "DI-0", "label": "1A reed 1S1", "var": "_IO_EM_DI_00" },
+    { "id": "DI-1", "label": "1A reed 1S2", "var": "_IO_EM_DI_01" },
+    { "id": "DI-2", "label": "2A reed 2S1", "var": "_IO_EM_DI_02" },
+    { "id": "DI-3", "label": "2A reed 2S2", "var": "_IO_EM_DI_03" },
+    { "id": "DI-4", "label": "3A reed 3S1", "var": "_IO_EM_DI_04" },
+    { "id": "DI-5", "label": "3A reed 3S2", "var": "_IO_EM_DI_05" },
+    { "id": "DI-6", "label": "4A reed 4S1", "var": "_IO_EM_DI_06" },
+    { "id": "DI-7", "label": "4A reed 4S2", "var": "_IO_EM_DI_07" },
+    { "id": "DI-8", "label": "Metal at Stamp 1 (IS-01)", "var": "_IO_EM_DI_08" },
+    { "id": "DI-9", "label": "Job at Stamp 2 (CS-01)", "var": "_IO_EM_DI_09" },
+    { "id": "DI-10", "label": "Job in magazine", "var": "_IO_EM_DI_10" },
+    { "id": "DI-11", "label": "Reset (black)", "var": "_IO_EM_DI_11" },
+    { "id": "DI-12", "label": "E-stop released", "var": "_IO_EM_DI_12" },
+    { "id": "DI-13", "label": "Continuous mode", "var": "_IO_EM_DI_13" },
+    { "id": "DI-14", "label": "Start (green)", "var": "_IO_EM_DI_14" },
+    { "id": "DI-15", "label": "Stop (red)", "var": "_IO_EM_DI_15" }
+  ],
+  "outputs": [
+    { "id": "DO-0", "label": "1A extend", "var": "_IO_EM_DO_00" },
+    { "id": "DO-1", "label": "1A retract", "var": "_IO_EM_DO_01" },
+    { "id": "DO-2", "label": "2A extend", "var": "_IO_EM_DO_02" },
+    { "id": "DO-3", "label": "2A retract", "var": "_IO_EM_DO_03" },
+    { "id": "DO-4", "label": "3A extend (Stamp 1 down)", "var": "_IO_EM_DO_04" },
+    { "id": "DO-5", "label": "3A retract", "var": "_IO_EM_DO_05" },
+    { "id": "DO-6", "label": "4A extend (Stamp 2 down)", "var": "_IO_EM_DO_06" },
+    { "id": "DO-7", "label": "4A retract", "var": "_IO_EM_DO_07" }
+  ],
+  "actuators": [
+    { "id": "FEED", "label": "1A feed", "kind": "linear", "a": { "var": "_IO_EM_DO_00", "label": "Out" }, "b": { "var": "_IO_EM_DO_01", "label": "In" } },
+    { "id": "XFER", "label": "2A transfer", "kind": "linear", "a": { "var": "_IO_EM_DO_02", "label": "Out" }, "b": { "var": "_IO_EM_DO_03", "label": "In" } },
+    { "id": "SA", "label": "3A Stamp 1", "kind": "linear", "a": { "var": "_IO_EM_DO_04", "label": "Down" }, "b": { "var": "_IO_EM_DO_05", "label": "Up" } },
+    { "id": "SB", "label": "4A Stamp 2", "kind": "linear", "a": { "var": "_IO_EM_DO_06", "label": "Down" }, "b": { "var": "_IO_EM_DO_07", "label": "Up" } }
+  ],
+  "settings": [
+    { "label": "Move timeout", "var": "K2_T_MOVETIMEOUT", "unit": "ms" },
+    { "label": "Detect settle", "var": "K2_T_DETECTSETTLE", "unit": "ms" },
+    { "label": "Stamp dwell", "var": "K2_T_STAMPDWELL", "unit": "ms" },
+    { "label": "Seen at Stamp 2 within", "var": "K2_T_SEENATB", "unit": "ms" },
+    { "label": "S1 reed is the pulled-in end", "var": "K2_CFG_S1ISRETRACTED", "unit": "bool" }
+  ]
+}

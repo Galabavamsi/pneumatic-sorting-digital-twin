@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Palette, radius, space } from '../theme';
 import type { Snapshot } from '../types';
-import { PartState, pileCounts, TwinDef, TWINS } from '../kits/twins';
+import { PartState, pileCounts, pileSpot, TwinDef, TWINS } from '../kits/twins';
 import { Card, Body, Label } from './ui';
 
 // 3D view of a station: the kit's own CAD model (the one the Unity twin uses),
@@ -32,7 +32,13 @@ type Built = {
   highlightMaterial: THREE.MeshStandardMaterial | null;
   piles: THREE.Mesh[][];
   props: Record<string, THREE.Mesh>;
+  extras: Record<string, THREE.Mesh>;     // extra jobs on the machine (copies of the workpiece)
+  flyers: THREE.Mesh[];                   // jobs on their way into a tray
+  stack: THREE.Mesh[];                    // waiting jobs in the magazine, bottom first
 };
+
+const PILE_SIZE = 6;
+const FLYERS = 3;
 
 function build(scene: THREE.Object3D, def: TwinDef): Built {
   const flat = { flatShading: true };
@@ -72,6 +78,7 @@ function build(scene: THREE.Object3D, def: TwinDef): Built {
   });
 
   const props: Record<string, THREE.Mesh> = {};
+  const stackById: Record<string, THREE.Mesh> = {};
   for (const mesh of meshes) {
     const id = def.fullNames ? mesh.name : mesh.name.slice(-3);
     const n = Number(id);
@@ -103,6 +110,7 @@ function build(scene: THREE.Object3D, def: TwinDef): Built {
         ? def.stockList.includes(id)
         : n >= def.stock[0] && n <= def.stock[1] && (mesh.geometry.index?.count ?? 0) <= 36;
       mesh.material = isStock ? stock : def.bins.includes(id) ? bin : metal;
+      if (def.stack?.order.includes(id)) stackById[id] = mesh;
       model.add(mesh);
     }
   }
@@ -111,25 +119,33 @@ function build(scene: THREE.Object3D, def: TwinDef): Built {
     throw new Error(`Workpiece Component_${def.activePart} is missing from the model.`);
   }
 
+  const copyOfPart = () => {
+    const copy = new THREE.Mesh(part!.geometry, partMaterial.clone());
+    copy.visible = false;
+    model.add(copy);
+    return copy;
+  };
   const piles: THREE.Mesh[][] = [[], []];
-  for (let b = 0; b < 2; b++) {
-    for (let i = 0; i < 4; i++) {
-      const copy = new THREE.Mesh(part.geometry, partMaterial.clone());
-      copy.visible = false;
-      model.add(copy);
-      piles[b].push(copy);
-    }
-  }
+  for (let b = 0; b < 2; b++) for (let i = 0; i < PILE_SIZE; i++) piles[b].push(copyOfPart());
+  const extras: Record<string, THREE.Mesh> = {};
+  for (const key of def.extras ?? []) extras[key] = copyOfPart();
+  const flyers: THREE.Mesh[] = [];
+  for (let i = 0; i < FLYERS; i++) flyers.push(copyOfPart());
+  const stack = (def.stack?.order ?? []).map((id) => stackById[id]).filter(Boolean);
 
-  return { root, groups, part, partMaterial, highlightMaterial, piles, props };
+  return { root, groups, part, partMaterial, highlightMaterial, piles, props, extras, flyers, stack };
 }
+
+type Flyer = { pos: THREE.Vector3; target: THREE.Vector3; bin: number; material: number; t: number; turn: number };
 
 function Rig({ built, def, live, p }: { built: Built; def: TwinDef; live: React.MutableRefObject<Live>; p: Palette }) {
   const eased = useRef<Record<string, number>>({});
   const home = useMemo(() => new THREE.Vector3(...def.partHome), [def]);
   const state = useRef<PartState>({ mode: 'magazine', pos: new THREE.Vector3(...def.partHome), target: new THREE.Vector3(), bin: 0, material: 0, data: {} });
-  const dropped = useRef<{ pos: THREE.Vector3; material: number }[][]>([[], []]);
+  const dropped = useRef<{ pos: THREE.Vector3; material: number; turn: number }[][]>([[], []]);
+  const flying = useRef<Flyer[]>([]);
   const fall = useRef(0);
+  const mag = useRef({ taken: 0, shown: 0, out: false });      // magazine: jobs taken, eased drop, pusher has been out
   const colors = useMemo(
     () => ({
       metal: new THREE.Color('#C9CDD0'),
@@ -142,11 +158,20 @@ function Rig({ built, def, live, p }: { built: Built; def: TwinDef; live: React.
   );
   const colorOf = (m: number) => (m === 1 ? colors.metal : m === 2 ? colors.plastic : colors.unknown);
 
-  useFrame((_, dt) => {
+  // a job lands in a tray: it takes the next free spot of that pile
+  const land = (bin: number, material: number, turn: number) => {
+    const pile = dropped.current[bin];
+    if (pile.length >= PILE_SIZE) pile.shift();
+    pile.push({ pos: new THREE.Vector3(), material, turn });
+    pile.forEach((d, i) => d.pos.set(...pileSpot(def, bin, i)));
+  };
+
+  useFrame((_, dtRaw) => {
+    const dt = Math.min(dtRaw, 0.1);
     const t = live.current;
     const v = eased.current;
     const s = state.current;
-    const step = Math.min(dt, 0.1) * 1.6;       // full travel in about 0.6 s
+    const step = dt * 1.6;       // full travel in about 0.6 s
     for (const id of Object.keys(t.travel)) {
       const now = v[id] ?? t.travel[id];
       const target = t.travel[id];
@@ -162,30 +187,65 @@ function Rig({ built, def, live, p }: { built: Built; def: TwinDef; live: React.
     pileCounts[0] = dropped.current[0].length;
     pileCounts[1] = dropped.current[1].length;
     const before = s.mode;
-    def.part(s, v, t.step, def, Math.min(dt, 0.1));
+    def.part(s, v, t.step, def, dt);
+    const d = s.data;
+
+    // pieces that travel with the workpiece (Kit 5's inserts)
     for (const key of Object.keys(built.props)) {
       const mesh = built.props[key];
-      mesh.visible = !s.data[key + 'h'];
-      mesh.position.set(s.data[key + 'x'] ?? 0, s.data[key + 'y'] ?? 0, s.data[key + 'z'] ?? 0);
+      mesh.visible = !d[key + 'h'];
+      mesh.position.set(d[key + 'x'] ?? 0, d[key + 'y'] ?? 0, d[key + 'z'] ?? 0);
     }
 
-    if (s.mode === 'falling' && before !== 'falling') fall.current = 0;
+    // other jobs still on the machine (Kit 2: the one waiting at a stamp)
+    for (const key of Object.keys(built.extras)) {
+      const mesh = built.extras[key];
+      mesh.visible = d[key + 'v'] === 1;
+      mesh.position.set((d[key + 'x'] ?? 0) - home.x, (d[key + 'y'] ?? 0) - home.y, (d[key + 'z'] ?? 0) - home.z);
+      (mesh.material as THREE.MeshStandardMaterial).color.copy(colorOf(d[key + 'm'] ?? 0));
+    }
 
+    // a job pushed off the edge by the next one: it tips over the edge and drops into its tray
+    if (d.fly === 1) {
+      d.fly = 0;
+      const bin = d.flyBin ?? 0;
+      const spot = pileSpot(def, bin, Math.min(dropped.current[bin].length, PILE_SIZE - 1));
+      flying.current.push({ pos: new THREE.Vector3(d.flyX, d.flyY, d.flyZ), target: new THREE.Vector3(...spot), bin, material: d.flyMat ?? 0, t: 0, turn: (dropped.current[bin].length * 37) % 90 });
+    }
+
+    flying.current = flying.current.filter((f) => {
+      f.t += dt;
+      const k = Math.min(1, dt * 4);
+      f.pos.x += (f.target.x - f.pos.x) * k;
+      f.pos.y += (f.target.y - f.pos.y) * k;
+      f.pos.z = Math.max(f.target.z, f.pos.z - 9810 * f.t * dt * 0.1);
+      if (f.pos.z <= f.target.z && f.t > 0.45) {
+        land(f.bin, f.material, f.turn);
+        return false;
+      }
+
+      return true;
+    });
+    built.flyers.forEach((mesh, i) => {
+      const f = flying.current[i];
+      mesh.visible = !!f;
+      if (f) {
+        mesh.position.copy(f.pos).sub(home);
+        mesh.rotation.set(Math.min(1.2, f.t * 3), 0, 0);
+        (mesh.material as THREE.MeshStandardMaterial).color.copy(colorOf(f.material));
+      }
+    });
+
+    // the workpiece in play, when a cylinder or the vacuum cup lets go of it
+    if (s.mode === 'falling' && before !== 'falling') fall.current = 0;
     if (s.mode === 'falling') {
-      // slides off in the direction it was pushed while it drops
       fall.current += dt;
       const k = Math.min(1, dt * 5);
       s.pos.x += (s.target.x - s.pos.x) * k;
       s.pos.y += (s.target.y - s.pos.y) * k;
       s.pos.z = Math.max(s.target.z, s.pos.z - 9810 * fall.current * dt * 0.12);
       if (s.pos.z <= s.target.z && fall.current > 0.5) {
-        const pile = dropped.current[s.bin];
-        pile.push({ pos: s.target.clone(), material: s.material });
-        if (pile.length > 4) {
-          pile.shift();
-          pile.forEach((d, i) => (d.pos.z = def.rest[s.bin][2] + def.partHeight / 2 + i * def.partHeight));
-        }
-
+        land(s.bin, s.material, (dropped.current[s.bin].length * 37) % 90);
         s.mode = 'gone';
       }
     }
@@ -195,15 +255,44 @@ function Rig({ built, def, live, p }: { built: Built; def: TwinDef; live: React.
     built.partMaterial.color.copy(colorOf(s.material));
     built.piles.forEach((copies, b) => {
       copies.forEach((copy, i) => {
-        const d = dropped.current[b][i];
-        copy.visible = !!d;
-        if (d) {
-          copy.position.copy(d.pos).sub(home);
-          (copy.material as THREE.MeshStandardMaterial).color.copy(colorOf(d.material));
+        const item = dropped.current[b][i];
+        copy.visible = !!item;
+        if (item) {
+          copy.position.copy(item.pos).sub(home);
+          copy.rotation.set(0, 0, (item.turn * Math.PI) / 180);
+          (copy.material as THREE.MeshStandardMaterial).color.copy(colorOf(item.material));
         }
       });
     });
+
+    // the magazine: once the pusher has gone out and come back, the stack drops by one job
+    if (def.stack && built.stack.length > 0) {
+      const m = mag.current;
+      const feed = v[def.stack.feed] ?? 0;
+      if (feed > 0.9) m.out = true;
+      if (m.out && feed < 0.1) {
+        m.out = false;
+        m.taken += 1;
+        if (m.taken > built.stack.length) {      // empty: show a refilled magazine
+          m.taken = 0;
+          m.shown = 0;
+        }
+      }
+
+      m.shown = Math.min(m.taken, m.shown + dt * 4);
+      const atHome = s.mode === 'magazine' || s.pos.distanceTo(home) < 2;
+      built.stack.forEach((mesh, i) => {
+        const slot = i + 1 - m.taken;             // 0 is the bottom slot, where the next job waits
+        mesh.position.z = -def.stack!.pitch * m.shown;
+        mesh.visible = slot > 0 || (slot === 0 && !atHome);
+      });
+    }
   });
+
+  // development aid: lets the motion be sampled from the browser console
+  if (__DEV__) {
+    (globalThis as { __twin?: unknown }).__twin = { state: state.current, dropped: dropped.current, flying, mag: mag.current, eased: eased.current, live };
+  }
 
   return <primitive object={built.root} />;
 }

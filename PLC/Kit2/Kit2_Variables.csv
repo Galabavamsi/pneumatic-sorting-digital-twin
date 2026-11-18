@@ -1,0 +1,56 @@
+name,scope,data_type,initial_value,modbus_address,comment
+K2_CFG_S1IsRetracted,Global,BOOL,TRUE,,TRUE = the S1 reed (DI-0/2/4/6) is the pulled-in end. Not yet verified
+K2_CFG_EStopFitted,Global,BOOL,TRUE,,FALSE only for bench tests with no E-stop on DI-12
+K2_CFG_EStopNC,Global,BOOL,TRUE,,TRUE = E-stop contact is on when released
+K2_T_MoveTimeout,Global,TIME,T#4s,,Longest allowed cylinder move
+K2_T_HomeTimeout,Global,TIME,T#8s,,Longest allowed homing
+K2_T_DetectSettle,Global,TIME,T#500ms,,Wait before reading IS-01
+K2_T_SeenAtB,Global,TIME,T#1500ms,,CS-01 must see the job at Stamp 2 within this time
+K2_T_StampDwell,Global,TIME,T#500ms,,Stamp stays down this long
+K2_T_FeedDelay,Global,TIME,T#500ms,,Pause before each feed
+K2_T_EmptyDebounce,Global,TIME,T#2s,,Magazine empty this long ends the batch
+K2_IN_FeedRet,Global,BOOL,,,1A pulled in
+K2_IN_FeedExt,Global,BOOL,,,1A pushed out
+K2_IN_XferRet,Global,BOOL,,,2A pulled in
+K2_IN_XferExt,Global,BOOL,,,2A pushed out
+K2_IN_StampAUp,Global,BOOL,,,3A up (Stamp 1)
+K2_IN_StampADn,Global,BOOL,,,3A down (Stamp 1)
+K2_IN_StampBUp,Global,BOOL,,,4A up (Stamp 2)
+K2_IN_StampBDn,Global,BOOL,,,4A down (Stamp 2)
+K2_IN_Inductive,Global,BOOL,,,IS-01 at Stamp 1: metal (DI-8)
+K2_IN_Capacitive,Global,BOOL,,,CS-01 at Stamp 2: any job (DI-9)
+K2_IN_MagPart,Global,BOOL,,,Job waiting in the magazine (DI-10)
+K2_IN_EStopOk,Global,BOOL,,,TRUE = E-stop healthy (DI-12)
+K2_IN_StartPB,Global,BOOL,,,Green (DI-14)
+K2_IN_StopPB,Global,BOOL,,,Red (DI-15)
+K2_IN_ResetPB,Global,BOOL,,,Black (DI-11)
+K2_IN_Continuous,Global,BOOL,,,Selector (DI-13)
+K2_OUT_FeedExt,Global,BOOL,,,Command: 1A out
+K2_OUT_XferExt,Global,BOOL,,,Command: 2A out
+K2_OUT_StampADown,Global,BOOL,,,Command: Stamp 1 down
+K2_OUT_StampBDown,Global,BOOL,,,Command: Stamp 2 down
+K2_ST_AutoRunning,Global,BOOL,,,Status
+K2_ST_Faulted,Global,BOOL,,,Status
+K2_HMI_Start,Global,BOOL,,,Start command (PLC clears it)
+K2_HMI_Stop,Global,BOOL,,,Stop command (PLC clears it)
+K2_HMI_Reset,Global,BOOL,,,Reset command (PLC clears it)
+K2_Heartbeat,Global,INT,,,+1 about every 100 ms
+K2_Step,Global,INT,,,Sequence step (see Kit2_Sort.st header)
+K2_Material,Global,INT,,,0 none / 1 metal / 2 plastic
+K2_PartsDone,Global,INT,,,Jobs processed
+K2_MetalCount,Global,INT,,,Metal jobs
+K2_PlasticCount,Global,INT,,,Plastic jobs
+K2_FaultCode,Global,INT,,,Fault code (see Kit2_Sort.st header)
+rawEStop,Local,BOOL,,,
+outEnable,Local,BOOL,,,
+wantAuto,Local,BOOL,,,
+stopRequest,Local,BOOL,,,
+hbPulse,Local,BOOL,,,
+stepChanged,Local,BOOL,,,
+stepPrev,Local,INT,,,
+tStep,Local,TON,,,Time in current step
+tHb,Local,TON,,,Heartbeat
+tDwell,Local,TON,,,Stamp hold time
+rtStart,Local,R_TRIG,,,
+rtStop,Local,R_TRIG,,,
+rtReset,Local,R_TRIG,,,

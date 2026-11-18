@@ -35,16 +35,28 @@ export type TwinDef = {
   // extra pieces that travel with the workpiece (Kit 5's inserts): the mesh is moved by
   // data[key + 'x' | 'y' | 'z'] millimetres from its CAD position, hidden when data[key + 'h'] is 1
   props?: { mesh: string; key: string }[];
+  // extra jobs on the machine besides the one in play, drawn as copies of the workpiece:
+  // shown when data[key + 'v'] is 1, at data[key + 'x' | 'y' | 'z'] (CAD mm), coloured by data[key + 'm']
+  extras?: string[];
+  // the waiting jobs in the magazine, bottom first (not counting the active part), so the stack
+  // can drop by one each time the feed cylinder has gone out and come back
+  stack?: { order: string[]; pitch: number; feed: string };
   rest: V3[];                  // where parts pile up, per bin
   // v: eased travel (0..1) of each actuator, by the snapshot's actuator id
   pose: (groups: Record<string, THREE.Group>, v: Record<string, number>) => void;
   part: (s: PartState, v: Record<string, number>, step: number, def: TwinDef, dt: number) => void;
 };
 
-export const release = (s: PartState, def: TwinDef, bin: number, piles: number[]) => {
+// Where the n-th job in a tray comes to rest: two side by side, then the next layer.
+export const pileSpot = (def: TwinDef, bin: number, n: number): V3 => {
   const r = def.rest[bin];
+  const side = n % 2 === 0 ? -1 : 1;
+  return [r[0] + side * 14, r[1] + (n % 3 - 1) * 9, r[2] + def.partHeight / 2 + Math.floor(n / 2) * def.partHeight];
+};
+
+export const release = (s: PartState, def: TwinDef, bin: number, piles: number[]) => {
   s.bin = bin;
-  s.target.set(r[0], r[1], r[2] + def.partHeight / 2 + Math.min(piles[bin], 3) * def.partHeight);
+  s.target.set(...pileSpot(def, bin, Math.min(piles[bin], 5)));
   s.mode = 'falling';
 };
 
@@ -70,6 +82,7 @@ const kit1: TwinDef = {
   bins: ['023', '024', '059'],
   stock: [30, 46],
   activePart: '042',
+  stack: { order: ['030', '044', '032', '041', '037', '040', '031', '045', '036', '039', '033', '046', '035', '043', '034'], pitch: 10, feed: '1A' },
   partHome: [-20.7, -6.7, 111],
   partHeight: 10,
   rest: [
@@ -111,9 +124,18 @@ const kit1: TwinDef = {
 };
 
 // ----------------------------------------------------------------------- Kit 2
-// Kit2FeedCylinderCalibration.cs (029 + 018, stage 50 / eject 90 mm, -Y),
-// Kit2SecondCylinderCalibration.cs (030 + 031, stage 56 / eject 90 mm, -X),
+// Components and directions from the Unity scripts: Kit2FeedCylinderCalibration.cs
+// (029 + 018, -Y), Kit2SecondCylinderCalibration.cs (030 + 031, -X),
 // Kit2StampingCylinderCalibration.cs (A: 032 + 034, B: 033 + 035, 30 mm down).
+//
+// The sequence follows the real rig (PLC/Kit2/Kit2_Sort.st), which differs from the
+// Unity twin: the cylinders have two positions, and a stamped job stays at its stamp
+// until the next job of that kind pushes it on, off the edge, into its tray.
+const K2_FEED = 50;        // mm, magazine to Stamp 1 (stroke taken from the Unity twin)
+const K2_ACROSS = 56;      // mm, Stamp 1 to Stamp 2
+const K2_JOB = 25;         // mm, length of a job: the gap the next job closes before it pushes
+const K2_TIP = 20;         // mm a waiting job is pushed before it tips into the tray
+
 const kit2: TwinDef = {
   url: '/models/kit2.glb',
   centre: [0, 0, 120],
@@ -125,46 +147,85 @@ const kit2: TwinDef = {
     { id: 'stampA', components: ['032', '034'] },
     { id: 'stampB', components: ['033', '035'] },
   ],
-  bins: ['027', '028', '058'],
+  bins: ['027', '028', '058', '016'],     // the two trays, the magazine tube and the plate over the stamps
   stock: [36, 51],
   activePart: '036',
   partHome: [-1.7, -24.8, 119.8],
   partHeight: 10,
+  // magazine order, bottom to top, from Kit2MagazineFeedCalibration.cs
+  stack: { order: ['051', '041', '045', '040', '044', '039', '050', '038', '049', '037', '048', '043', '047', '042', '046'], pitch: 10, feed: 'FEED' },
+  extras: ['a', 'b'],        // the job waiting at Stamp 1, and the one waiting at Stamp 2
   rest: [
-    [-2, -150, 5],       // Bin 1, straight on from Stamp A
-    [-134, -75, 5],      // Bin 2, straight on from Stamp B
+    [-2, -150, 5],       // Tray 1, straight on from Stamp 1
+    [-134, -75, 5],      // Tray 2, straight on from Stamp 2
   ],
   pose(g, v) {
-    g.feed.position.y = -90 * (v.FEED ?? 0);
-    g.transfer.position.x = -90 * (v.XFER ?? 0);
+    g.feed.position.y = -K2_FEED * (v.FEED ?? 0);
+    g.transfer.position.x = -K2_ACROSS * (v.XFER ?? 0);
     g.stampA.position.z = -30 * (v.SA ?? 0);
     g.stampB.position.z = -30 * (v.SB ?? 0);
   },
   part(s, v, step, def) {
     const [hx, hy, hz] = def.partHome;
-    if ((s.mode === 'magazine' || s.mode === 'gone') && step === 11) {
+    const ay = hy - K2_FEED;             // Stamp 1 is straight ahead of the magazine
+    const bx = hx - K2_ACROSS;           // Stamp 2 is across from Stamp 1
+    let d = s.data;
+    const inTransfer = step >= 30 && step <= 34;
+
+    // plastic, stamped: from now on it is "the job waiting at Stamp 2"
+    if (s.mode === 'table' && (d.across ?? 0) >= K2_ACROSS - 0.5 && !inTransfer) {
+      d.bv = 1;
+      d.bm = s.material;
+      d.across = 0;
+      s.mode = 'gone';
+    }
+
+    // a new feed starts
+    if (step === 11 && d.started !== 1) {
+      const waitingAtA = s.mode === 'table';      // metal, stamped, still at Stamp 1
+      s.data = d = { started: 1, fed: 0, across: 0, av: waitingAtA ? 1 : (d.av ?? 0), am: waitingAtA ? s.material : (d.am ?? 0), bv: d.bv ?? 0, bm: d.bm ?? 0 };
       s.mode = 'table';
-      s.data = { fed: 0, ejectA: 0, across: 0, ejectB: 0 };
-    } else if (s.mode === 'gone' && (step === 10 || step === 0)) {
+      s.material = 0;
+      s.pos.set(hx, hy, hz);
+    }
+
+    if (step !== 11) d.started = 0;
+    if (s.mode === 'gone' && (step === 10 || step === 0 || step === 1)) {
       s.mode = 'magazine';
       s.material = 0;
       s.pos.set(hx, hy, hz);
     }
 
-    if (s.mode !== 'table') return;
-    const d = s.data;
-    const feed = 90 * (v.FEED ?? 0);
-    const transfer = 90 * (v.XFER ?? 0);
-    d.fed = Math.max(d.fed, Math.min(feed, 50));
-    if (d.fed >= 49.5) {
-      if (d.across <= 0) d.ejectA = Math.max(d.ejectA, feed - 50);
-      if (d.ejectA <= 0) d.across = Math.max(d.across, Math.min(transfer, 56));
-      if (d.across >= 55.5) d.ejectB = Math.max(d.ejectB, transfer - 56);
+    let pushA = 0;
+    let pushB = 0;
+    if (s.mode === 'table') {
+      d.fed = Math.max(d.fed ?? 0, K2_FEED * (v.FEED ?? 0));
+      if (d.fed >= K2_FEED - 0.5) d.across = Math.max(d.across ?? 0, K2_ACROSS * (v.XFER ?? 0));
+      s.pos.set(hx - (d.across ?? 0), hy - d.fed, hz);
+      // the incoming job closes the gap, then pushes the waiting one ahead of it
+      pushA = Math.max(0, d.fed - (K2_FEED - K2_JOB));
+      pushB = Math.max(0, (d.across ?? 0) - (K2_ACROSS - K2_JOB));
     }
 
-    s.pos.set(hx - d.across - Math.max(0, d.ejectB), hy - d.fed - Math.max(0, d.ejectA), hz);
-    if (d.ejectA >= 39) release(s, def, 0, pileCounts);
-    else if (d.ejectB >= 33) release(s, def, 1, pileCounts);
+    if (d.av === 1) {
+      d.ax = hx;
+      d.ay = ay - pushA;
+      d.az = hz;
+      if (pushA >= K2_TIP) {
+        d.av = 0;
+        d.fly = 1; d.flyX = d.ax; d.flyY = d.ay; d.flyZ = hz; d.flyBin = 0; d.flyMat = d.am;
+      }
+    }
+
+    if (d.bv === 1) {
+      d.bx = bx - pushB;
+      d.by = ay;
+      d.bz = hz;
+      if (pushB >= K2_TIP) {
+        d.bv = 0;
+        d.fly = 1; d.flyX = d.bx; d.flyY = d.by; d.flyZ = hz; d.flyBin = 1; d.flyMat = d.bm;
+      }
+    }
   },
 };
 
