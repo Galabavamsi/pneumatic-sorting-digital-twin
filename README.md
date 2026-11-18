@@ -29,11 +29,11 @@ Kits 4–5 are presented as CAD assemblies only; no completed simulation is clai
 
 ## AR view on Meta Quest
 
-[![Kit 2's twin in AR beside the real kit, live from the PLC](Documentation/Images/quest-ar-demo.jpg)](Presentation/kit-digital-twin/videos/quest-ar-demo.mp4)
+![Kit 2's twin in AR beside the real kit, live from the PLC, moved by hand](Documentation/Images/quest-ar-demo.gif)
 
 The read-only dashboard in [Dashboard](Dashboard/README.md) has an AR view for Meta Quest headsets: the stations stand in the room at real size, driven by the live PLC feed where a controller is running and by the simulation elsewhere. Stations are carried, resized and turned with bare hands, and each has an information board with its jobs, cycle times and log. It runs as a web page (WebXR) and as an installable Quest app.
 
-[Watch the recording](Presentation/kit-digital-twin/videos/quest-ar-demo.mp4) (6 min, recorded in the headset on 2026-11-19): Kit 2's twin following the real controller beside the real kit. See [AR view (Meta Quest)](Dashboard/README.md#ar-view-meta-quest) for how it works.
+The clip is 12 seconds of a recording made in the headset on 2026-11-19: Kit 2's twin following the real controller beside the real kit. [Download the full 6-minute recording](Presentation/kit-digital-twin/videos/quest-ar-demo.mp4?raw=true) (MP4, 43 MB; GitHub does not play it in the page). See [AR view (Meta Quest)](Dashboard/README.md#ar-view-meta-quest) for how it works.
 
 ## Kit 1 — pneumatic sorting module
 

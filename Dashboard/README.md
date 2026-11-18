@@ -139,9 +139,9 @@ which faces the diverter across the belt, is left still because its job is not k
 
 ## AR view (Meta Quest)
 
-[![Kit 2's twin in AR beside the real kit, live from the PLC](../Documentation/Images/quest-ar-demo.jpg)](../Presentation/kit-digital-twin/videos/quest-ar-demo.mp4)
+![Kit 2's twin in AR beside the real kit, live from the PLC, moved by hand](../Documentation/Images/quest-ar-demo.gif)
 
-[Recording from the headset](../Presentation/kit-digital-twin/videos/quest-ar-demo.mp4) (6 min, 2026-11-19).
+[Download the full recording from the headset](../Presentation/kit-digital-twin/videos/quest-ar-demo.mp4?raw=true) (6 min, 2026-11-19, MP4, 43 MB).
 
 "AR view" at the top of the page (or `?ar=all`, `?ar=kit1` in the address) shows the stations in
 the room through a headset's passthrough, using WebXR in the headset's own browser: no app to
