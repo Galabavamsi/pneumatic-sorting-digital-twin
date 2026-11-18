@@ -17,10 +17,12 @@ import { Body, Label } from './ui';
 // view on the dashboard. A station that a controller is running follows the live
 // feed; every other station plays the in-app simulation, and each one says which.
 //
-// In the headset: point at a station and hold the trigger to carry it; while
-// holding, the thumbstick turns it (left / right) and moves it nearer or further
-// (up / down), A / X makes it smaller, B / Y larger, and the grip sets it back to
-// full size.
+// In the headset: point at a station and hold the trigger (or pinch, with tracked
+// hands) to carry it. With both hands on it, pulling them apart resizes it and
+// turning them turns it. With one controller, the thumbstick turns it and reels it
+// in or out, A / X and B / Y resize it, and the grip sets full size. A quick tap
+// opens the station's information board (jobs, cycle times, log). Where a station
+// is put is held to the room with the headset's anchors and remembered.
 
 const MM = 0.001;                    // CAD millimetres -> metres
 const ROOT_SCALE = 0.1;              // the scale build() gives its root (mm -> cm)
@@ -29,13 +31,55 @@ const TABLE = 0.75;                  // height a station first stands at, metres
 export type ArPreset = { kits: string[]; scale: number };
 
 type Info = { name: string; title: string; live: boolean; state: string; step: string };
+type Feed = { live: React.MutableRefObject<Live>; info: React.MutableRefObject<Info>; snap: React.MutableRefObject<Snapshot | null>; read: (() => Snapshot) | null };
 type Loaded = { id: string; def: TwinDef; built: Built; size: THREE.Vector3; shift: THREE.Vector3 };
 type Place = { position: [number, number, number]; yaw: number; scale: number };
-type Entry = { holder: THREE.Group; proxy: THREE.Mesh; hot: boolean; name: string; azimuth: number; home: Place };
+// One station in the room. Everything that moves a station writes `target`; the station
+// eases towards it every frame, which is what makes carrying and resizing feel smooth.
+type Entry = {
+  holder: THREE.Group;
+  proxy: THREE.Mesh;
+  hot: boolean;
+  name: string;
+  azimuth: number;
+  home: Place;
+  target: { pos: THREE.Vector3; yaw: number; scale: number };
+  info: boolean;            // its information board is open
+  placed: boolean;          // the viewer has put it somewhere themselves
+  anchor: any;              // XRAnchor holding it to the room, once placed
+  anchorUuid: string | null;
+  anchorDirty: boolean;     // it was moved: make a new anchor at the next frame
+  snap: boolean;            // jump to the target instead of easing (a restored placement)
+};
 type Registry = Map<string, Entry>;
 
 const STATE_WORD: Record<string, string> = { running: 'Running', idle: 'Idle', homing: 'Homing', fault: 'Fault', unknown: 'Unknown program' };
-const INK = { bg: 'rgba(18,19,17,0.86)', ink: '#ECE9DF', sub: '#A9A498', data: '#63C2B1', warn: '#E2AC43', alert: '#F26A45' };
+const INK = { bg: 'rgba(18,19,17,0.86)', ink: '#ECE9DF', sub: '#A9A498', data: '#63C2B1', warn: '#E2AC43', alert: '#F26A45', line: 'rgba(236,233,223,0.22)' };
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const MIN_SCALE = 0.05;
+const MAX_SCALE = 2;
+
+// Where a station was put is kept in the browser, keyed by station: the id of the
+// headset's persistent anchor and the station's size.
+const storeKey = (id: string) => 'rig-ar-place:' + id;
+function readPlace(id: string): { uuid: string; scale: number } | null {
+  try {
+    const raw = window.localStorage.getItem(storeKey(id));
+    const value = raw ? JSON.parse(raw) : null;
+    return value && typeof value.uuid === 'string' ? { uuid: value.uuid, scale: Number(value.scale) || 1 } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePlace(id: string, value: { uuid: string; scale: number } | null) {
+  try {
+    if (value) window.localStorage.setItem(storeKey(id), JSON.stringify(value));
+    else window.localStorage.removeItem(storeKey(id));
+  } catch {
+    // storage is unavailable: the placement just is not remembered
+  }
+}
 
 // ------------------------------------------------------------------ the data
 // One feed per station: the live snapshot when a controller is running that
@@ -45,13 +89,14 @@ function useStationFeeds(ids: string[]) {
   const latest = useRef(machines);
   latest.current = machines;
   const feeds = useMemo(() => {
-    const out: Record<string, { live: React.MutableRefObject<Live>; info: React.MutableRefObject<Info>; read: (() => Snapshot) | null }> = {};
+    const out: Record<string, Feed> = {};
     for (const id of ids) {
       const station = STATIONS.find((s) => s.id === id);
       const read = station?.sim ? createSim(station.sim) : null;
       out[id] = {
         live: { current: { travel: {}, step: 0, material: 0 } },
         info: { current: { name: station?.name ?? id, title: station?.title ?? '', live: false, state: '', step: '' } },
+        snap: { current: null },
         read,
       };
     }
@@ -67,6 +112,7 @@ function useStationFeeds(ids: string[]) {
         const real = m && m.attached && m.snapshot && m.snapshot.link.connected && (m.freshness === 'live' || m.freshness === 'stale') ? m.snapshot : null;
         const snap = real ?? feed.read?.() ?? null;
         if (!snap) continue;
+        feed.snap.current = snap;
         feed.live.current = liveFrom(snap);
         feed.info.current = {
           ...feed.info.current,
@@ -99,6 +145,7 @@ function drawLabel(canvas: HTMLCanvasElement, info: Info, scale: number, hint: b
   g.roundRect(0, 0, LABEL_W, LABEL_H, 22);
   g.fill();
 
+  g.textAlign = 'left';
   g.textBaseline = 'alphabetic';
   g.fillStyle = INK.ink;
   g.font = '600 50px BarlowCondensed_600SemiBold, "Arial Narrow", sans-serif';
@@ -135,12 +182,104 @@ function drawLabel(canvas: HTMLCanvasElement, info: Info, scale: number, hint: b
   g.fillStyle = INK.sub;
   g.font = '25px Barlow_400Regular, Arial, sans-serif';
   const size = Math.abs(scale - 1) < 0.01 ? 'Full size' : `${Math.round(scale * 100)} % of full size`;
-  g.fillText(hint ? 'Trigger: carry · stick: turn, near / far · A B: size · grip: full size' : size, 26, 178, LABEL_W - 52);
+  g.fillText(hint ? 'Hold trigger: carry · both hands: resize, turn · tap: info' : size, 26, 178, LABEL_W - 52);
 }
 
-// The panels that float near the viewer during a session: "Exit AR" and "Show".
-const EXIT_W = 0.2;
-const EXIT_H = 0.07;
+// ------------------------------------------------------- the information board
+// Jobs, cycle times and the latest events of one station, beside it in the room.
+const BOARD_W = 660;
+const BOARD_H = 800;
+const BOARD_M = 0.44;                // width in the room, metres
+
+function drawBoard(canvas: HTMLCanvasElement, info: Info, snap: Snapshot | null) {
+  const g = canvas.getContext('2d');
+  if (!g) return;
+  g.clearRect(0, 0, BOARD_W, BOARD_H);
+  g.fillStyle = INK.bg;
+  g.beginPath();
+  g.roundRect(0, 0, BOARD_W, BOARD_H, 24);
+  g.fill();
+  g.textAlign = 'left';
+  g.textBaseline = 'alphabetic';
+
+  const left = 30;
+  const right = BOARD_W - 30;
+  let y = 62;
+  const heading = (text: string) => {
+    g.fillStyle = INK.sub;
+    g.font = '600 26px BarlowCondensed_600SemiBold, "Arial Narrow", sans-serif';
+    g.fillText(text.toUpperCase(), left, y);
+    y += 12;
+    g.fillStyle = INK.line;
+    g.fillRect(left, y, right - left, 2);
+    y += 38;
+  };
+  const row = (label: string, value: string, tone: string = INK.ink) => {
+    g.fillStyle = INK.sub;
+    g.font = '28px Barlow_400Regular, Arial, sans-serif';
+    g.textAlign = 'left';
+    g.fillText(label, left, y, 330);
+    g.fillStyle = tone;
+    g.font = '500 30px IBMPlexMono_500Medium, Consolas, monospace';
+    g.textAlign = 'right';
+    g.fillText(value, right, y, 270);
+    g.textAlign = 'left';
+    y += 42;
+  };
+
+  g.fillStyle = INK.ink;
+  g.font = '600 46px BarlowCondensed_600SemiBold, "Arial Narrow", sans-serif';
+  g.fillText(info.name.toUpperCase(), left, y);
+  const fault = info.state === 'Fault';
+  g.fillStyle = fault ? INK.alert : info.live ? INK.data : INK.warn;
+  g.font = '600 30px BarlowCondensed_600SemiBold, "Arial Narrow", sans-serif';
+  g.textAlign = 'right';
+  g.fillText(info.live ? 'LIVE' : 'SIMULATED', right, y);
+  g.textAlign = 'left';
+  y += 56;
+
+  if (!snap) {
+    g.fillStyle = INK.sub;
+    g.font = '28px Barlow_400Regular, Arial, sans-serif';
+    g.fillText('No data yet.', left, y);
+    return;
+  }
+
+  heading('Now');
+  row('State', info.state, fault ? INK.alert : INK.ink);
+  row('Step', info.step || '—');
+  row('Part on the machine', snap.status?.materialName ?? '—');
+  y += 14;
+
+  heading('Jobs');
+  for (const c of (snap.counters ?? []).slice(0, 4)) {
+    row(c.label, c.value === null ? '—' : String(c.value));
+  }
+
+  const seconds = (v: number | null | undefined) => (v === null || v === undefined ? '—' : v.toFixed(1) + ' s');
+  row('Last cycle', seconds(snap.cycle?.lastSeconds));
+  row('Average cycle', seconds(snap.cycle?.averageSeconds));
+  y += 14;
+
+  heading('Log');
+  g.font = '24px Barlow_400Regular, Arial, sans-serif';
+  for (const e of snap.events ?? []) {
+    if (y > BOARD_H - 22) break;
+    const time = new Date(e.ts);
+    const clock = isNaN(time.getTime()) ? '' : time.toLocaleTimeString([], { hour12: false });
+    g.fillStyle = INK.sub;
+    g.font = '22px IBMPlexMono_400Regular, Consolas, monospace';
+    g.fillText(clock, left, y);
+    g.fillStyle = e.kind === 'fault' ? INK.alert : e.kind === 'warn' ? INK.warn : INK.ink;
+    g.font = '24px Barlow_400Regular, Arial, sans-serif';
+    g.fillText(e.text, left + 128, y, right - left - 128);
+    y += 34;
+  }
+}
+
+// The panels that float near the viewer during a session.
+const PANEL_W = 0.2;
+const PANEL_H = 0.07;
 
 function drawPanel(canvas: HTMLCanvasElement, text: string, hot: boolean) {
   const g = canvas.getContext('2d');
@@ -160,20 +299,24 @@ function drawPanel(canvas: HTMLCanvasElement, text: string, hot: boolean) {
   g.fillText(text, canvas.width / 2, canvas.height / 2 + 4, canvas.width - 40);
 }
 
+function sprite(width: number, height: number) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const object = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+  return { canvas, texture, object };
+}
+
+// "&info=1" in the address opens every board from the start (also shows them in the desktop preview).
+const BOARDS_OPEN = typeof window !== "undefined" && !!window.location && new URLSearchParams(window.location.search).get("info") === "1";
+
+const UP = new THREE.Vector3(0, 1, 0);
+const side = new THREE.Vector3();      // scratch
+
 // ---------------------------------------------------------------- one station
-function Kit({
-  loaded,
-  feed,
-  place,
-  registry,
-  p,
-}: {
-  loaded: Loaded;
-  feed: { live: React.MutableRefObject<Live>; info: React.MutableRefObject<Info> };
-  place: Place;
-  registry: Registry;
-  p: Palette;
-}) {
+function Kit({ loaded, feed, place, registry, p }: { loaded: Loaded; feed: Feed; place: Place; registry: Registry; p: Palette }) {
   const { id, def, built, size, shift } = loaded;
 
   const parts = useMemo(() => {
@@ -186,47 +329,91 @@ function Kit({
     const outline = new THREE.LineSegments(new THREE.EdgesGeometry(box), new THREE.LineBasicMaterial({ color: INK.data }));
     outline.position.y = size.y / 2;
     outline.visible = false;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = LABEL_W;
-    canvas.height = LABEL_H;
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
-    holder.add(proxy, outline, label);
-    return { holder, proxy, outline, label, canvas, texture, drawn: '' };
+    const label = sprite(LABEL_W, LABEL_H);
+    const board = sprite(BOARD_W, BOARD_H);
+    board.object.visible = false;
+    holder.add(proxy, outline, label.object, board.object);
+    return { holder, proxy, outline, label, board, drawn: '', boardDrawn: '' };
   }, [id, size]);
 
   useEffect(() => {
     parts.holder.position.set(...place.position);
     parts.holder.rotation.set(0, place.yaw, 0);
     parts.holder.scale.setScalar(place.scale);
-  }, [parts, place]);
-
-  useEffect(() => {
-    const entry: Entry = { holder: parts.holder, proxy: parts.proxy, hot: false, name: feed.info.current.name, azimuth: def.azimuth, home: place };
+    const entry: Entry = {
+      holder: parts.holder,
+      proxy: parts.proxy,
+      hot: false,
+      name: feed.info.current.name,
+      azimuth: def.azimuth,
+      home: place,
+      target: { pos: new THREE.Vector3(...place.position), yaw: place.yaw, scale: place.scale },
+      info: BOARDS_OPEN,
+      placed: false,
+      anchor: null,
+      anchorUuid: null,
+      anchorDirty: false,
+      snap: false,
+    };
     registry.set(id, entry);
     return () => {
       registry.delete(id);
     };
   }, [id, parts, registry, feed, def, place]);
 
-  useFrame(() => {
+  useFrame((state, dtRaw) => {
     const entry = registry.get(id);
-    const hot = !!entry?.hot;
-    const scale = parts.holder.scale.x;
-    parts.outline.visible = hot;
+    if (!entry) return;
+    const holder = parts.holder;
 
-    // the label keeps its real size whatever the station's scale
-    parts.label.scale.set(LABEL_M / scale, (LABEL_M * LABEL_H) / LABEL_W / scale, 1);
-    parts.label.position.y = size.y + (LABEL_M * 0.28) / scale;
+    // ease towards where the station has been asked to be
+    const k = entry.snap ? 1 : 1 - Math.exp(-Math.min(dtRaw, 0.1) * 16);
+    entry.snap = false;
+    holder.position.lerp(entry.target.pos, k);
+    const turn = Math.atan2(Math.sin(entry.target.yaw - holder.rotation.y), Math.cos(entry.target.yaw - holder.rotation.y));
+    holder.rotation.y += turn * k;
+    holder.scale.setScalar(holder.scale.x + (entry.target.scale - holder.scale.x) * k);
+
+    const scale = holder.scale.x;
+    parts.outline.visible = entry.hot;
+
+    // the label and the board keep their real size whatever the station's scale
+    parts.label.object.scale.set(LABEL_M / scale, (LABEL_M * LABEL_H) / LABEL_W / scale, 1);
+    parts.label.object.position.y = size.y + (LABEL_M * 0.28) / scale;
 
     const info = feed.info.current;
-    const key = `${info.live}|${info.state}|${info.step}|${scale.toFixed(2)}|${hot}`;
+    const key = `${info.live}|${info.state}|${info.step}|${scale.toFixed(2)}|${entry.hot}`;
     if (key !== parts.drawn) {
       parts.drawn = key;
-      drawLabel(parts.canvas, info, scale, hot);
-      parts.texture.needsUpdate = true;
+      drawLabel(parts.label.canvas, info, scale, entry.hot);
+      parts.label.texture.needsUpdate = true;
+    }
+
+    const board = parts.board.object;
+    board.visible = entry.info;
+    if (entry.info) {
+      const height = (BOARD_M * BOARD_H) / BOARD_W;
+      board.scale.set(BOARD_M / scale, height / scale, 1);
+      // to the viewer's right of the station, whichever way the station is turned
+      side.set(0, 0, -1).transformDirection(state.camera.matrixWorld).setY(0);
+      if (side.lengthSq() < 0.01) side.set(0, 0, -1);
+      side.normalize().set(-side.z, 0, side.x);
+      const reach = (Math.hypot(size.x, size.z) / 2) * scale + BOARD_M / 2 + 0.04;
+      board.position
+        .copy(side)
+        .multiplyScalar(reach)
+        .applyAxisAngle(UP, -holder.rotation.y)
+        .divideScalar(scale)
+        .setY(Math.max(size.y / 2, height / 2 / scale));
+      const snap = feed.snap.current;
+      const boardKey = `${info.live}|${info.state}|${info.step}|${snap?.status?.material}|${(snap?.counters ?? []).map((c) => c.value).join(',')}|${snap?.cycle?.lastSeconds}|${snap?.events?.[0]?.ts}`;
+      if (boardKey !== parts.boardDrawn) {
+        parts.boardDrawn = boardKey;
+        drawBoard(parts.board.canvas, info, snap);
+        parts.board.texture.needsUpdate = true;
+        // development aid: lets the board be looked at from the browser console
+        if (__DEV__) (globalThis as { __arBoard?: unknown }).__arBoard = parts.board.canvas;
+      }
     }
   });
 
@@ -240,62 +427,126 @@ function Kit({
 }
 
 // ------------------------------------------------------------ the controllers
+// One hand (a controller, or a tracked hand that pinches) holding a station: the
+// station hangs `offset` away from the point `dist` along the hand's ray.
 type Grab = { id: string; dist: number; offset: THREE.Vector3 };
+// Both hands on one station: it is stretched, turned and carried between them.
+type Duo = { id: string; span: number; angle: number; mid: THREE.Vector3; pos: THREE.Vector3; yaw: number; scale: number };
+type PanelKey = 'exit' | 'reset' | 'info' | 'show';
+const PANELS: PanelKey[] = ['exit', 'reset', 'info', 'show'];      // bottom to top
+type Hand = {
+  space: THREE.Object3D;
+  ray: THREE.Line;
+  source: any;
+  grab: Grab | null;
+  over: { id: string; dist: number; point: THREE.Vector3 } | null;
+  panel: PanelKey | null;
+  downAt: number;
+  origin: THREE.Vector3;
+  dir: THREE.Vector3;
+  point: THREE.Vector3;
+  live: boolean;
+};
 const deadzone = (v: number | undefined) => (v !== undefined && Math.abs(v) > 0.18 ? v : 0);
+const TAP_MS = 280;
 
 function Controllers({ registry }: { registry: Registry }) {
   const { gl, scene, camera } = useThree();
-  const hands = useRef<{ space: THREE.Object3D; ray: THREE.Line; source: any; grab: Grab | null; over: { id: string; dist: number; point: THREE.Vector3 } | null; panel: 'exit' | 'show' | null }[]>([]);
+  const hands = useRef<Hand[]>([]);
+  const duo = useRef<Duo | null>(null);
+  const restoredFor = useRef<unknown>(null);
+  const tools = useMemo(() => ({ caster: new THREE.Raycaster(), v: new THREE.Vector3(), q: new THREE.Quaternion(), e: new THREE.Euler(0, 0, 0, 'YXZ'), up: new THREE.Vector3(0, 1, 0) }), []);
 
-  // "Exit AR": a small panel that stays within reach, down and to the left of the view
-  const exit = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 400;
-    canvas.height = 140;
-    drawPanel(canvas, 'EXIT AR', false);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(EXIT_W, EXIT_H), new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide }));
-    mesh.visible = false;
-
-    // above it: which stations are shown. It steps through all of them, then each one alone at full size.
-    const showCanvas = document.createElement('canvas');
-    showCanvas.width = 400;
-    showCanvas.height = 140;
-    drawPanel(showCanvas, 'SHOW: ALL', false);
-    const showTexture = new THREE.CanvasTexture(showCanvas);
-    showTexture.colorSpace = THREE.SRGBColorSpace;
-    const show = new THREE.Mesh(new THREE.PlaneGeometry(EXIT_W, EXIT_H), new THREE.MeshBasicMaterial({ map: showTexture, transparent: true, side: THREE.DoubleSide }));
-    show.position.y = EXIT_H + 0.015;
-    mesh.add(show);
-    return {
-      mesh,
-      canvas,
-      texture,
-      hot: false,
-      placed: false,
-      head: new THREE.Vector3(),
-      want: new THREE.Vector3(),
-      flat: new THREE.Vector3(),
-      show,
-      showCanvas,
-      showTexture,
-      showHot: false,
-      showText: 'SHOW: ALL',
-      only: null as string | null,
-    };
+  // The menu: a short stack of panels that stays within reach, down and to the left of the view.
+  const menu = useMemo(() => {
+    const group = new THREE.Group();
+    group.visible = false;
+    const panels = PANELS.map((key, i) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 400;
+      canvas.height = 140;
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(PANEL_W, PANEL_H), new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide }));
+      mesh.position.y = i * (PANEL_H + 0.012);
+      mesh.userData.panel = key;
+      group.add(mesh);
+      return { key, canvas, texture, mesh, drawn: '' };
+    });
+    return { group, panels, placed: false, only: null as string | null, head: new THREE.Vector3(), want: new THREE.Vector3(), flat: new THREE.Vector3() };
   }, []);
 
   useEffect(() => {
-    scene.add(exit.mesh);
+    scene.add(menu.group);
     return () => {
-      scene.remove(exit.mesh);
+      scene.remove(menu.group);
     };
-  }, [scene, exit]);
-  const tools = useMemo(() => ({ caster: new THREE.Raycaster(), origin: new THREE.Vector3(), dir: new THREE.Vector3() }), []);
+  }, [scene, menu]);
+
+  // a station brought in front of the viewer, facing them
+  const bringInFront = (entry: Entry, scale: number) => {
+    entry.target.pos.copy(menu.head).addScaledVector(menu.flat, 0.9);
+    entry.target.pos.y = TABLE;
+    entry.target.yaw = -Math.atan2(menu.flat.x, -menu.flat.z) - entry.azimuth;
+    entry.target.scale = scale;
+  };
+
+  const forget = (id: string, entry: Entry) => {
+    const session = gl.xr.getSession() as any;
+    try {
+      entry.anchor?.delete?.();
+    } catch {
+      // already gone
+    }
+
+    if (entry.anchorUuid) session?.deletePersistentAnchor?.(entry.anchorUuid)?.catch?.(() => {});
+    entry.anchor = null;
+    entry.anchorUuid = null;
+    entry.anchorDirty = false;
+    entry.placed = false;
+    writePlace(id, null);
+  };
+
+  const press = (key: PanelKey) => {
+    if (key === 'exit') {
+      gl.xr.getSession()?.end();
+    } else if (key === 'info') {
+      // open every board, or close them all if they are all open
+      let allOpen = true;
+      registry.forEach((entry) => {
+        if (entry.holder.visible && !entry.info) allOpen = false;
+      });
+      registry.forEach((entry) => (entry.info = !allOpen));
+    } else if (key === 'reset') {
+      // back to the arc in front of the viewer; remembered placements are dropped
+      menu.only = null;
+      registry.forEach((entry, id) => {
+        forget(id, entry);
+        entry.holder.visible = true;
+        entry.target.pos.set(...entry.home.position);
+        entry.target.yaw = entry.home.yaw;
+        entry.target.scale = entry.home.scale;
+      });
+    } else {
+      // all -> the first station alone -> the next ... -> all
+      const ids = [...registry.keys()];
+      const next = menu.only === null ? 0 : ids.indexOf(menu.only) + 1;
+      menu.only = next < ids.length ? ids[next] : null;
+      registry.forEach((entry, id) => {
+        entry.holder.visible = menu.only === null || menu.only === id;
+        // a station picked alone comes to the viewer at full size, unless they have already put it somewhere
+        if (menu.only === id && !entry.placed) bringInFront(entry, 1);
+        if (menu.only === null && !entry.placed) {
+          entry.target.pos.set(...entry.home.position);
+          entry.target.yaw = entry.home.yaw;
+          entry.target.scale = entry.home.scale;
+        }
+      });
+    }
+  };
 
   useEffect(() => {
-    const list = [0, 1].map((i) => {
+    const list: Hand[] = [0, 1].map((i) => {
       const space = gl.xr.getController(i) as THREE.Object3D;
       const ray = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -1)]),
@@ -303,62 +554,65 @@ function Controllers({ registry }: { registry: Registry }) {
       );
       space.add(ray);
       scene.add(space);
-      return { space, ray, source: null as any, grab: null as Grab | null, over: null as { id: string; dist: number; point: THREE.Vector3 } | null, panel: null as 'exit' | 'show' | null };
+      return { space, ray, source: null, grab: null, over: null, panel: null, downAt: 0, origin: new THREE.Vector3(), dir: new THREE.Vector3(), point: new THREE.Vector3(), live: false };
     });
     hands.current = list;
 
     const off: (() => void)[] = [];
     list.forEach((hand, i) => {
+      const other = list[1 - i];
       const listen = (type: string, fn: (e: any) => void) => {
         (hand.space as any).addEventListener(type, fn);
         off.push(() => (hand.space as any).removeEventListener(type, fn));
+      };
+      const release = () => {
+        const grab = hand.grab;
+        hand.grab = null;
+        if (!grab) return;
+        const entry = registry.get(grab.id);
+        if (!entry) return;
+        if (other.grab?.id === grab.id) {
+          // the other hand carries on alone from where the station is now
+          duo.current = null;
+          other.grab.offset.copy(entry.target.pos).sub(other.point);
+          return;
+        }
+
+        if (performance.now() - hand.downAt < TAP_MS) {
+          entry.info = !entry.info;      // a quick tap opens or closes the station's board
+        } else {
+          entry.placed = true;
+          entry.anchorDirty = true;
+        }
       };
 
       listen('connected', (e) => (hand.source = e.data));
       listen('disconnected', () => {
         hand.source = null;
-        hand.grab = null;
+        release();
         hand.over = null;
       });
       listen('selectstart', () => {
-        if (hand.panel === 'exit') {
-          gl.xr.getSession()?.end();
-          return;
-        }
-
-        if (hand.panel === 'show') {
-          // all -> the first station alone -> the next ... -> all
-          const ids = [...registry.keys()];
-          const next = exit.only === null ? 0 : ids.indexOf(exit.only) + 1;
-          exit.only = next < ids.length ? ids[next] : null;
-          registry.forEach((entry, id) => {
-            const holder = entry.holder;
-            holder.visible = exit.only === null || exit.only === id;
-            if (exit.only === null) {
-              holder.position.set(...entry.home.position);
-              holder.rotation.set(0, entry.home.yaw, 0);
-              holder.scale.setScalar(entry.home.scale);
-            } else if (exit.only === id) {
-              // alone: full size, at table height, straight ahead of the viewer and facing them
-              holder.position.copy(exit.head).addScaledVector(exit.flat, 0.9);
-              holder.position.y = TABLE;
-              holder.rotation.set(0, -Math.atan2(exit.flat.x, -exit.flat.z) - entry.azimuth, 0);
-              holder.scale.setScalar(1);
-            }
-          });
+        if (hand.panel) {
+          press(hand.panel);
           return;
         }
 
         const over = hand.over;
         const entry = over ? registry.get(over.id) : undefined;
-        if (!over || !entry || list[1 - i].grab?.id === over.id) return;
-        hand.grab = { id: over.id, dist: over.dist, offset: entry.holder.position.clone().sub(over.point) };
+        if (!over || !entry) return;
+        hand.downAt = performance.now();
+        hand.grab = { id: over.id, dist: over.dist, offset: entry.target.pos.clone().sub(over.point) };
+        hand.point.copy(over.point);
       });
-      listen('selectend', () => (hand.grab = null));
+      listen('selectend', release);
       listen('squeezestart', () => {
         const target = hand.grab?.id ?? hand.over?.id;
         const entry = target ? registry.get(target) : undefined;
-        entry?.holder.scale.setScalar(1);
+        if (!entry) return;
+        entry.target.scale = 1;
+        entry.placed = true;
+        entry.anchorDirty = true;
       });
     });
 
@@ -370,115 +624,235 @@ function Controllers({ registry }: { registry: Registry }) {
       });
       hands.current = [];
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gl, scene, registry]);
 
-  useFrame((_, dtRaw) => {
+  useFrame((_, dtRaw, frame: any) => {
     const dt = Math.min(dtRaw, 0.1);
-    const { caster, origin, dir } = tools;
+    const { caster, v, q, e, up } = tools;
     const presenting = gl.xr.isPresenting;
+    const [a, b] = hands.current;
     registry.forEach((entry) => (entry.hot = false));
 
-    // the exit panel follows the viewer, but only once they have moved or turned well away from it
-    exit.mesh.visible = presenting;
+    // ---- the menu follows the viewer, but only once they have moved or turned well away from it
+    menu.group.visible = presenting;
     if (!presenting) {
-      exit.placed = false;
+      menu.placed = false;
     } else {
-      exit.head.setFromMatrixPosition(camera.matrixWorld);
-      exit.flat.set(0, 0, -1).transformDirection(camera.matrixWorld).setY(0);
-      if (exit.flat.lengthSq() > 0.01) {
-        exit.flat.normalize();
-        exit.want.copy(exit.head).addScaledVector(exit.flat, 0.55);
-        exit.want.x += exit.flat.z * 0.32;        // to the viewer's left
-        exit.want.z -= exit.flat.x * 0.32;
-        exit.want.y = Math.max(0.3, exit.head.y - 0.42);
-        const away = exit.mesh.position.distanceTo(exit.want);
-        if (!exit.placed) {
-          exit.mesh.position.copy(exit.want);
-          exit.placed = true;
-        } else if (away > 0.45) {
-          exit.mesh.position.lerp(exit.want, Math.min(1, dt * 3));
+      menu.head.setFromMatrixPosition(camera.matrixWorld);
+      menu.flat.set(0, 0, -1).transformDirection(camera.matrixWorld).setY(0);
+      if (menu.flat.lengthSq() > 0.01) {
+        menu.flat.normalize();
+        menu.want.copy(menu.head).addScaledVector(menu.flat, 0.55);
+        menu.want.x += menu.flat.z * 0.32;        // to the viewer's left
+        menu.want.z -= menu.flat.x * 0.32;
+        menu.want.y = Math.max(0.3, menu.head.y - 0.5);
+        if (!menu.placed) {
+          menu.group.position.copy(menu.want);
+          menu.placed = true;
+        } else if (menu.group.position.distanceTo(menu.want) > 0.45) {
+          menu.group.position.lerp(menu.want, Math.min(1, dt * 3));
         }
       }
 
-      exit.mesh.lookAt(exit.head);
+      v.copy(menu.head).setY(menu.group.position.y);
+      menu.group.lookAt(v);
     }
 
-    let exitHot = false;
-    let showHot = false;
-    exit.show.visible = registry.size > 1;
+    // ---- placements held to the room by the headset's anchors
+    const session = presenting ? (gl.xr.getSession() as any) : null;
+    const refSpace = presenting ? (gl.xr.getReferenceSpace() as any) : null;
+    const held = (id: string) => a?.grab?.id === id || b?.grab?.id === id;
+    if (session && refSpace && frame) {
+      if (restoredFor.current !== session) {
+        // a new session: bring back what was placed last time
+        restoredFor.current = session;
+        registry.forEach((entry, id) => {
+          const saved = readPlace(id);
+          entry.anchor = null;
+          if (!saved || !session.restorePersistentAnchor || !session.persistentAnchors?.has?.(saved.uuid)) return;
+          session.restorePersistentAnchor(saved.uuid).then(
+            (anchor: any) => {
+              entry.anchor = anchor;
+              entry.anchorUuid = saved.uuid;
+              entry.target.scale = clamp(saved.scale, MIN_SCALE, MAX_SCALE);
+              entry.placed = true;
+              entry.snap = true;
+            },
+            () => writePlace(id, null),
+          );
+        });
+      }
 
+      registry.forEach((entry, id) => {
+        if (held(id)) return;
+        if (entry.anchorDirty && frame.createAnchor && (globalThis as any).XRRigidTransform) {
+          // it was moved: let go of the old anchor and make one where it stands now
+          entry.anchorDirty = false;
+          const previous = entry.anchorUuid;
+          try {
+            entry.anchor?.delete?.();
+          } catch {
+            // already gone
+          }
+
+          entry.anchor = null;
+          q.setFromAxisAngle(up, entry.target.yaw);
+          const pose = new (globalThis as any).XRRigidTransform(
+            { x: entry.target.pos.x, y: entry.target.pos.y, z: entry.target.pos.z },
+            { x: q.x, y: q.y, z: q.z, w: q.w },
+          );
+          const scale = entry.target.scale;
+          frame.createAnchor(pose, refSpace)?.then(
+            (anchor: any) => {
+              if (held(id)) {
+                anchor.delete?.();
+                return;
+              }
+
+              entry.anchor = anchor;
+              anchor.requestPersistentHandle?.()?.then(
+                (uuid: string) => {
+                  if (previous && previous !== uuid) session.deletePersistentAnchor?.(previous)?.catch?.(() => {});
+                  entry.anchorUuid = uuid;
+                  writePlace(id, { uuid, scale });
+                },
+                () => {},
+              );
+            },
+            () => {},
+          );
+        } else if (entry.anchor) {
+          // the headset keeps correcting where the anchor is in the room; the station follows
+          const pose = frame.getPose?.(entry.anchor.anchorSpace, refSpace);
+          if (pose) {
+            const t = pose.transform;
+            entry.target.pos.set(t.position.x, t.position.y, t.position.z);
+            q.set(t.orientation.x, t.orientation.y, t.orientation.z, t.orientation.w);
+            entry.target.yaw = e.setFromQuaternion(q).y;
+          }
+        }
+      });
+    }
+
+    // ---- where each hand points
     for (const hand of hands.current) {
-      hand.ray.visible = presenting;
+      hand.live = presenting && hand.space.visible;
+      hand.ray.visible = hand.live;
       hand.panel = null;
-      if (!presenting || !hand.space.visible) {
+      if (!hand.live) {
         hand.over = null;
         continue;
       }
 
-      origin.setFromMatrixPosition(hand.space.matrixWorld);
-      dir.set(0, 0, -1).transformDirection(hand.space.matrixWorld);
+      hand.origin.setFromMatrixPosition(hand.space.matrixWorld);
+      hand.dir.set(0, 0, -1).transformDirection(hand.space.matrixWorld);
+      if (hand.grab) {
+        if (!registry.get(hand.grab.id)) hand.grab = null;
+        else hand.point.copy(hand.origin).addScaledVector(hand.dir, hand.grab.dist);
+      }
+    }
 
+    // ---- both hands on one station: stretch to resize, turn the hands to turn it
+    const both = a?.live && b?.live && a.grab && b.grab && a.grab.id === b.grab.id ? registry.get(a.grab.id) : undefined;
+    if (both && a.grab && b.grab) {
+      const dx = b.point.x - a.point.x;
+      const dz = b.point.z - a.point.z;
+      const span = Math.max(0.02, a.point.distanceTo(b.point));
+      const angle = Math.atan2(dz, dx);
+      v.copy(a.point).add(b.point).multiplyScalar(0.5);
+      if (!duo.current || duo.current.id !== a.grab.id) {
+        duo.current = { id: a.grab.id, span, angle, mid: v.clone(), pos: both.target.pos.clone(), yaw: both.target.yaw, scale: both.target.scale };
+      }
+
+      const d = duo.current;
+      const scale = clamp((d.scale * span) / d.span, MIN_SCALE, MAX_SCALE);
+      const turned = -(angle - d.angle);
+      both.target.scale = scale;
+      both.target.yaw = d.yaw + turned;
+      // the point between the hands stays on the same spot of the station
+      both.target.pos.copy(d.pos).sub(d.mid).multiplyScalar(scale / d.scale).applyAxisAngle(up, turned).add(v);
+      both.target.pos.y = Math.max(0, both.target.pos.y);
+      both.hot = true;
+      a.ray.scale.z = a.grab.dist;
+      b.ray.scale.z = b.grab.dist;
+      return;
+    }
+
+    duo.current = null;
+
+    // ---- one hand: carry; the thumbstick turns and reels in or out, A / B resizes
+    const menuMeshes = menu.panels.filter((panel) => panel.mesh.visible).map((panel) => panel.mesh);
+    for (const hand of hands.current) {
+      if (!hand.live) continue;
       const grab = hand.grab;
-      const held = grab ? registry.get(grab.id) : undefined;
-      if (grab && held) {
+      const entry = grab ? registry.get(grab.id) : undefined;
+      if (grab && entry) {
         const pad = hand.source?.gamepad as Gamepad | undefined;
         if (pad) {
-          held.holder.rotation.y -= deadzone(pad.axes[2]) * dt * 1.6;
-          grab.dist = Math.min(8, Math.max(0.15, grab.dist - deadzone(pad.axes[3]) * dt * 1.5));
+          entry.target.yaw -= deadzone(pad.axes[2]) * dt * 1.6;
+          grab.dist = clamp(grab.dist - deadzone(pad.axes[3]) * dt * 1.5, 0.15, 8);
           const grow = (pad.buttons[5]?.pressed ? 1 : 0) - (pad.buttons[4]?.pressed ? 1 : 0);
-          if (grow !== 0) {
-            held.holder.scale.setScalar(Math.min(2, Math.max(0.05, held.holder.scale.x * Math.exp(grow * dt * 0.9))));
-          }
+          if (grow !== 0) entry.target.scale = clamp(entry.target.scale * Math.exp(grow * dt * 0.9), MIN_SCALE, MAX_SCALE);
         }
 
-        held.holder.position.copy(origin).addScaledVector(dir, grab.dist).add(grab.offset);
-        held.holder.position.y = Math.max(0, held.holder.position.y);
-        held.hot = true;
+        hand.point.copy(hand.origin).addScaledVector(hand.dir, grab.dist);
+        entry.target.pos.copy(hand.point).add(grab.offset);
+        entry.target.pos.y = Math.max(0, entry.target.pos.y);
+        entry.hot = true;
         hand.ray.scale.z = grab.dist;
         continue;
       }
 
-      hand.grab = null;
-      caster.set(origin, dir);
-      const proxies: THREE.Object3D[] = [];
-      registry.forEach((entry) => {
-        if (!entry.holder.visible) return;
-        entry.holder.updateWorldMatrix(true, true);
-        proxies.push(entry.proxy);
+      caster.set(hand.origin, hand.dir);
+      const targets: THREE.Object3D[] = [...menuMeshes];
+      registry.forEach((item) => {
+        if (!item.holder.visible) return;
+        item.holder.updateWorldMatrix(true, true);
+        targets.push(item.proxy);
       });
-      exit.mesh.updateWorldMatrix(true, true);
-      proxies.push(exit.mesh);
-      if (exit.show.visible) proxies.push(exit.show);
-      const hit = caster.intersectObjects(proxies, false)[0];
-      if (hit && (hit.object === exit.mesh || hit.object === exit.show)) {
-        hand.over = null;
-        hand.panel = hit.object === exit.mesh ? 'exit' : 'show';
-        if (hand.panel === 'exit') exitHot = true;
-        else showHot = true;
-        hand.ray.scale.z = hit.distance;
-        continue;
-      }
-
-      hand.over = hit ? { id: hit.object.userData.id as string, dist: hit.distance, point: hit.point.clone() } : null;
+      menu.group.updateWorldMatrix(true, true);
+      const hit = caster.intersectObjects(targets, false)[0];
       hand.ray.scale.z = hit ? hit.distance : 3;
-      if (hit) {
-        const entry = registry.get(hit.object.userData.id as string);
-        if (entry) entry.hot = true;
+      hand.over = null;
+      if (!hit) continue;
+      if (hit.object.userData.panel) {
+        hand.panel = hit.object.userData.panel as PanelKey;
+      } else {
+        const id = hit.object.userData.id as string;
+        hand.over = { id, dist: hit.distance, point: hit.point.clone() };
+        const item = registry.get(id);
+        if (item) item.hot = true;
       }
     }
 
-    if (exitHot !== exit.hot) {
-      exit.hot = exitHot;
-      drawPanel(exit.canvas, 'EXIT AR', exitHot);
-      exit.texture.needsUpdate = true;
-    }
-
-    const showText = 'SHOW: ' + (exit.only === null ? 'ALL' : (registry.get(exit.only)?.name ?? '').toUpperCase());
-    if (showHot !== exit.showHot || showText !== exit.showText) {
-      exit.showHot = showHot;
-      exit.showText = showText;
-      drawPanel(exit.showCanvas, showText, showHot);
-      exit.showTexture.needsUpdate = true;
+    // ---- the menu's wording
+    let boards = 0;
+    let shown = 0;
+    registry.forEach((entry) => {
+      if (!entry.holder.visible) return;
+      shown++;
+      if (entry.info) boards++;
+    });
+    for (const panel of menu.panels) {
+      panel.mesh.visible = panel.key !== 'show' || registry.size > 1;
+      const text =
+        panel.key === 'exit'
+          ? 'EXIT AR'
+          : panel.key === 'reset'
+            ? 'RESET PLACES'
+            : panel.key === 'info'
+              ? boards > 0 && boards === shown
+                ? 'INFO: ON'
+                : 'INFO: OFF'
+              : 'SHOW: ' + (menu.only === null ? 'ALL' : (registry.get(menu.only)?.name ?? '').toUpperCase());
+      const hot = hands.current.some((hand) => hand.panel === panel.key);
+      const key = text + hot;
+      if (key !== panel.drawn) {
+        panel.drawn = key;
+        drawPanel(panel.canvas, text, hot);
+        panel.texture.needsUpdate = true;
+      }
     }
   });
 
@@ -661,7 +1035,7 @@ function Scene({ p, preset, auto, onBack, onClose }: { p: Palette; preset: ArPre
     const xr = (navigator as any).xr;
     if (!gl || !xr) return;
     try {
-      const session = await xr.requestSession('immersive-ar', { requiredFeatures: ['local-floor'], optionalFeatures: ['hand-tracking'] });
+      const session = await xr.requestSession('immersive-ar', { requiredFeatures: ['local-floor'], optionalFeatures: ['hand-tracking', 'anchors'] });
       session.addEventListener('end', () => setPresenting(false));
       gl.xr.setReferenceSpaceType('local-floor');
       await gl.xr.setSession(session);
@@ -726,7 +1100,7 @@ function Scene({ p, preset, auto, onBack, onClose }: { p: Palette; preset: ArPre
             <Body p={p} style={{ fontSize: 13, lineHeight: 18, color: p.sub }}>
               {supported === false
                 ? 'This browser has no AR. Open this page in the browser of a Meta Quest headset; what you see here is a preview.'
-                : 'In AR: point at a station and hold the trigger to carry it. While holding, the thumbstick turns it and moves it nearer or further, A / B changes its size, the grip sets full size. Down to your left are two panels: Show steps through all stations and each one alone at full size, Exit AR leaves.'}
+                : 'In AR: point at a station and hold the trigger to carry it; hold it with both hands and pull them apart or turn them to resize and turn it. A quick tap opens its information board. Where you put a station is remembered. The panels down to your left show one station or all, open the boards, reset the places and leave AR.'}
             </Body>
           </View>
         </View>
