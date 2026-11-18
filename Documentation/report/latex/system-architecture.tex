@@ -1,0 +1,747 @@
+% PLC to cloud: system design report.
+% Build (twice, for the table of contents):  pdflatex system-architecture.tex
+% Diagrams are TikZ, charts are pgfplots, logos come from icons.tex (make-icons.mjs).
+\documentclass[a4paper,10.5pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[scaled=0.95]{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage[a4paper,margin=21mm,top=24mm,bottom=24mm]{geometry}
+\usepackage{xcolor,graphicx,booktabs,tabularx,array,enumitem,titlesec,fancyhdr,caption,float,listings}
+\usepackage{tikz,pgfplots}
+\pgfplotsset{compat=1.17}
+\usetikzlibrary{svg.path,arrows.meta,positioning,shapes.geometric,shapes.misc,calc,fit,backgrounds}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{ink}{HTML}{15191E}
+\definecolor{sub}{HTML}{556070}
+\definecolor{rule}{HTML}{C3C9D1}
+\definecolor{soft}{HTML}{F1F3F5}
+\definecolor{data}{HTML}{0B5C8A}
+\definecolor{datasoft}{HTML}{D9E8F2}
+\definecolor{edge}{HTML}{1F6B4F}
+\definecolor{edgesoft}{HTML}{DAEBE3}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warnsoft}{HTML}{F3E7CB}
+\definecolor{alert}{HTML}{B5311A}
+\input{icons.tex}
+% Generic PLC symbol: a module with terminals. Same call shape as the logos.
+\newcommand{\icoPlc}[3]{\begin{scope}[shift={(#1,#2)},scale=#3]
+  \draw[ink,line width=0.6pt,rounded corners=0.6pt] (0.08,-0.12) rectangle (0.76,-0.74);
+  \foreach \i in {0.22,0.42,0.62}{\draw[ink,line width=0.6pt] (\i,-0.12) -- (\i,0.0); \draw[ink,line width=0.6pt] (\i,-0.74) -- (\i,-0.86); \fill[ink] (\i,-0.3) circle (0.035);}
+  \draw[ink,line width=0.5pt] (0.18,-0.52) -- (0.66,-0.52);
+\end{scope}}
+
+\color{ink}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\titleformat{\section}{\Large\bfseries\color{ink}}{\thesection}{0.6em}{}[{\color{ink}\titlerule[1.2pt]}]
+\titleformat{\subsection}{\large\bfseries\color{sub}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{18pt}{8pt}
+\titlespacing*{\subsection}{0pt}{12pt}{4pt}
+\captionsetup{font={small,color=sub},labelfont={bf,color=ink},justification=raggedright,singlelinecheck=false}
+\setlist{itemsep=2pt,topsep=3pt,leftmargin=1.4em}
+\pagestyle{fancy}\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{\small\color{sub}PLC to cloud: system design}
+\fancyhead[R]{\small\color{sub}18 November 2026}
+\fancyfoot[C]{\small\color{sub}\thepage}
+\renewcommand{\arraystretch}{1.25}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\code}[1]{{\ttfamily\small #1}}
+\newcommand{\built}{\colorbox{datasoft}{\scriptsize\strut BUILT}}
+\newcommand{\prop}{\colorbox{edgesoft}{\scriptsize\strut PROPOSED}}
+\newcommand{\gap}{\colorbox{warnsoft}{\scriptsize\strut GAP}}
+\lstset{basicstyle=\ttfamily\footnotesize,frame=single,rulecolor=\color{rule},backgroundcolor=\color{soft},xleftmargin=4pt,xrightmargin=4pt,aboveskip=6pt,belowskip=4pt,columns=fullflexible,keepspaces=true,showstringspaces=false}
+
+\tikzset{
+  >={Stealth[length=2.2mm]},
+  every node/.style={font=\footnotesize},
+  box/.style={draw=ink,line width=0.6pt,rounded corners=2pt,fill=white,align=center,inner sep=4pt},
+  cloud/.style={box,draw=data,fill=datasoft},
+  edgebox/.style={box,draw=edge,fill=edgesoft},
+  subbox/.style={box,draw=rule,fill=white},
+  lane/.style={draw=rule,dashed,rounded corners=3pt},
+  wire/.style={->,line width=0.6pt,draw=ink},
+  dwire/.style={->,line width=1pt,draw=data},
+  ewire/.style={->,line width=1pt,draw=edge},
+  hd/.style={font=\scriptsize\bfseries,text=sub},
+  note/.style={font=\scriptsize,text=sub,align=center},
+  proc/.style={box,minimum width=36mm,minimum height=8mm},
+  term/.style={box,rounded rectangle,minimum width=30mm,minimum height=7mm,fill=soft},
+  dec/.style={draw=ink,line width=0.6pt,diamond,aspect=2.4,fill=warnsoft,align=center,inner sep=1pt},
+  state/.style={box,rounded corners=6pt,minimum width=26mm,minimum height=8mm},
+}
+
+\begin{document}
+
+% ------------------------------------------------------------------ title
+\thispagestyle{empty}
+{\small\color{sub}TECHNICAL DESIGN \quad$\cdot$\quad PLC, DIGITAL TWIN AND CLOUD \quad$\cdot$\quad 18 NOVEMBER 2026}
+
+\vspace{4mm}
+{\Huge\bfseries From a PLC tag to a phone\par}
+\vspace{1mm}
+{\LARGE\color{sub} How the machine data is read, modelled and delivered\par}
+\vspace{5mm}
+This document covers one thing: how the state of an Allen-Bradley Micro850 controller is read, turned into
+something a person can use, and delivered to a digital twin and to a dashboard anywhere. It gives the
+high-level design, the low-level design with flowcharts, where each piece of software runs, a proposal for a
+compact edge device, and what a client needs in order to use it.
+
+{\small\color{sub}Audience: integrators, plant IT and OT staff, and anyone deploying this on their own machine.}
+
+\vspace{2mm}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \foreach \t/\v/\x in {Full state read/24--28 ms/0, Poll period/120 ms/3.45, Snapshot today/4{,}960 B/6.9, Compact frame/17 B/10.35, Write paths to PLC/0/13.8}{
+    \node[box,minimum width=31mm,minimum height=15mm,fill=soft,draw=rule] at (\x,0) {};
+    \node[font=\large\bfseries] at (\x,0.22) {\v};
+    \node[font=\scriptsize,text=sub] at (\x,-0.38) {\MakeUppercase{\t}};
+  }
+\end{tikzpicture}
+\end{center}
+
+\tableofcontents
+
+% ------------------------------------------------------------------ 1
+\section{High-level design}
+
+The system has four tiers. Data flows one way, from the machine outwards. Nothing in the chain can write to
+the controller, and the plant side only ever opens outbound connections.
+
+\begin{figure}[H]\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+  % lanes
+  \draw[lane] (0,0) rectangle (3.9,7.4);   \node[hd,anchor=west] at (0.1,7.65) {TIER 1 \,$\cdot$\, FIELD (OT)};
+  \draw[lane] (4.15,0) rectangle (9.0,7.4); \node[hd,anchor=west] at (4.25,7.65) {TIER 2 \,$\cdot$\, EDGE};
+  \draw[lane] (9.25,0) rectangle (12.9,7.4);\node[hd,anchor=west] at (9.35,7.65) {TIER 3 \,$\cdot$\, CLOUD};
+  \draw[lane] (13.15,0) rectangle (16.7,7.4);\node[hd,anchor=west] at (13.25,7.65) {TIER 4 \,$\cdot$\, CLIENTS};
+  % field
+  \node[box,minimum width=33mm,minimum height=16mm] (kit) at (1.95,6.1) {\textbf{Pneumatic kit}\\[-1pt]{\scriptsize cylinders, valves,}\\[-2pt]{\scriptsize sensors, buttons}};
+  \node[box,minimum width=33mm,minimum height=20mm] (plc) at (1.95,2.0) {};
+  \icoPlc{0.5}{2.75}{0.85}
+  \node[anchor=west] at (1.25,2.4) {\textbf{Micro850 PLC}};
+  \node[note,anchor=west,align=left] at (0.45,1.55) {2080-L50E-48QBB\\Structured Text sequence};
+  \draw[wire] ([xshift=-5mm]plc.north) -- ([xshift=-5mm]kit.south) node[midway,left,note] {24 V\\outputs};
+  \draw[wire] ([xshift=5mm]kit.south) -- ([xshift=5mm]plc.north) node[midway,right,note] {inputs};
+  % edge
+  \node[box,minimum width=44mm,minimum height=13mm] (ccw) at (6.58,6.3) {\textbf{Connected Components}\\\textbf{Workbench}\\[-1pt]{\scriptsize engineer: build, download}};
+  \node[box,minimum width=44mm,minimum height=13mm] (unity) at (6.58,4.3) {};
+  \icoUnity{4.55}{4.72}{0.85}\node[anchor=west] at (5.3,4.5) {\textbf{Unity digital twin}}; \node[note,anchor=west] at (5.3,4.08) {3D mirror, live with F8};
+  \node[edgebox,minimum width=44mm,minimum height=22mm] (gw) at (6.58,1.9) {};
+  \icoDotnet{4.55}{2.82}{0.85}\node[anchor=west] at (5.3,2.6) {\textbf{PLC gateway}};
+  \node[note,anchor=west,align=left] at (4.5,1.5) {poll, identify kit, build snapshot\\HTTP + event stream on :8787\\publisher: outbound HTTPS only};
+  \draw[wire] (plc.east) -- (gw.west |- plc.east) node[midway,above,note] {CIP};
+  \draw[wire] (4.02,2.0) |- (unity.west);
+  \draw[wire] (4.02,4.3) |- (ccw.west);
+  \node[note] at (1.95,0.4) {EtherNet/IP, TCP 44818};
+  \node[note] at (6.58,0.4) {today a Windows PC; proposed an edge box};
+  % cloud
+  \node[cloud,minimum width=32mm,minimum height=22mm] (relay) at (11.08,1.9) {};
+  \icoSupabase{9.65}{2.82}{0.85}\node[anchor=west] at (10.4,2.6) {\textbf{Cloud relay}};
+  \node[note,anchor=west,align=left] at (9.6,1.5) {PostgreSQL table\\latest snapshot / machine\\realtime change feed};
+  \node[box,minimum width=32mm,minimum height=13mm] (host) at (11.08,4.3) {};
+  \icoVercel{9.65}{4.72}{0.85}\node[anchor=west] at (10.4,4.5) {\textbf{Static hosting}}; \node[note,anchor=west] at (10.4,4.08) {app + 3D models};
+  \draw[dwire] (gw.east |- relay.west) -- (relay.west) node[midway,above,note] {HTTPS};
+  % clients
+  \node[box,minimum width=31mm,minimum height=46mm] (app) at (14.92,3.1) {};
+  \icoReact{13.55}{5.22}{0.85}\node[anchor=west] at (14.3,5.0) {\textbf{Dashboard}};
+  \node[note,anchor=west,align=left] at (13.5,3.6) {React Native (Expo)\\floor view, station pages\\3D model, signals, log\\marks stale data};
+  \icoGooglechrome{13.6}{2.1}{0.8}\icoAndroid{14.55}{2.1}{0.8}\icoApple{15.5}{2.1}{0.8}
+  \node[note] at (14.92,1.05) {web today, mobile next};
+  \draw[dwire] (relay.east) -- (app.west |- relay.east) node[midway,above,note] {WSS};
+  \draw[wire] (host.east) -- (app.west |- host.east) node[midway,above,note] {HTTPS};
+\end{tikzpicture}
+\caption{High-level design as built. Blue arrows carry the published machine state. The engineering tool is the only component able to change the PLC program.}
+\end{figure}
+
+\subsection{Design decisions}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{42mm}YY@{}}
+\toprule
+\textbf{Decision} & \textbf{Reason} & \textbf{Consequence} \\
+\midrule
+Read the PLC by tag name over EtherNet/IP & Micro800 global variables are readable by name with no setup in the PLC project & No Modbus mapping to maintain; adding a signal is adding a name to a profile \\
+Implement only the ``read tag'' service & A monitoring system must not be able to move a machine & Writing is impossible in this code path, not merely disabled \\
+A gateway between the PLC and everything else & The PLC sits on a private link and changes its address & One place knows the protocol; twin, app and cloud consume plain JSON \\
+Push from the plant to the cloud & No inbound firewall rule, no public address at the plant & The cloud holds the latest state and cannot reach back into the plant \\
+Describe each machine in a profile file & Machines differ only in names, steps and labels & A new machine is a data file, not new code \\
+\bottomrule
+\end{tabularx}
+
+% ------------------------------------------------------------------ 2
+\section{Where each piece of software runs}
+
+A common question is where the .NET gateway code actually executes. Today it runs on the \textbf{rig PC}: the
+Windows computer on the bench that is plugged into the PLC. It is an ordinary console program, not a
+service and not something inside the PLC or the cloud.
+
+\begin{figure}[H]\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+  % the PLC
+  \node[box,minimum width=31mm,minimum height=24mm] (plc) at (1.55,3.2) {};
+  \icoPlc{0.25}{4.15}{0.8}\node[anchor=west] at (1.05,3.8) {\textbf{Micro850}};
+  \node[note,anchor=west,align=left] at (0.2,2.75) {169.254.177.240\\(link-local, changes)\\port 44818};
+
+  % the rig PC
+  \draw[draw=ink,line width=0.8pt,rounded corners=4pt,fill=soft] (4.2,0) rectangle (12.6,7.4);
+  \node[anchor=west] at (4.35,7.08) {\textbf{Rig PC} \,{\color{sub}Windows 11}};
+  \node[subbox,minimum width=20mm,minimum height=12mm] (nic) at (5.4,3.2) {\textbf{Ethernet}\\[-1pt]{\scriptsize 169.254.93.34}};
+  \node[subbox,minimum width=26mm,minimum height=10mm] (ccw) at (7.9,6.2) {\textbf{CCW}\\[-1pt]{\scriptsize engineering tool}};
+  \node[subbox,minimum width=30mm,minimum height=10mm] (unity) at (10.9,6.2) {};
+  \icoUnity{9.55}{6.5}{0.7}\node[anchor=west,align=left] at (10.2,6.2) {\textbf{Unity Editor}\\[-1pt]{\scriptsize digital twin}};
+
+  % the gateway process
+  \draw[draw=edge,line width=0.8pt,rounded corners=3pt,fill=edgesoft] (7.1,0.3) rectangle (12.4,5.2);
+  \icoDotnet{7.22}{5.08}{0.72}
+  \node[anchor=west] at (7.9,4.82) {\textbf{PlcGateway} \,{\color{sub}\scriptsize one dotnet process}};
+  \node[subbox,minimum width=22mm,minimum height=10mm] (poll) at (8.5,3.7) {\textbf{Poller}\\[-1pt]{\scriptsize thread: reads tags}};
+  \node[subbox,minimum width=22mm,minimum height=10mm] (hub) at (8.5,2.0) {\textbf{StateHub}\\[-1pt]{\scriptsize latest snapshot}};
+  \node[subbox,minimum width=22mm,minimum height=10mm] (web) at (11.1,3.7) {\textbf{Web server}\\[-1pt]{\scriptsize localhost:8787}};
+  \node[subbox,minimum width=22mm,minimum height=10mm] (pub) at (11.1,2.0) {\textbf{Publisher}\\[-1pt]{\scriptsize thread: to cloud}};
+  \node[note,anchor=west] at (7.25,0.72) {files: profiles, cloud.json (secret), wwwroot (app)};
+  \draw[wire] (poll) -- (hub);
+  \draw[wire] (hub) -- (pub);
+  \draw[wire] (hub.north east) -- (web.south west);
+
+  % wiring
+  \draw[wire,<->] (plc.east) -- (nic.west) node[midway,above,note] {one cable};
+  \draw[wire] (nic.east) -- ++(0.35,0) |- (poll.west);
+  \draw[wire] (nic.north) |- (ccw.west);
+  \draw[wire] (nic.north |- ccw.west) -- ++(0,0.75) -| (unity.north);
+  \node[note,anchor=east] at (12.5,7.08) {all three read the PLC over the same cable};
+
+  % outside
+  \node[box,minimum width=27mm,minimum height=12mm] (browser) at (14.9,3.7) {\textbf{Browser on}\\\textbf{the rig PC}};
+  \node[cloud,minimum width=27mm,minimum height=12mm] (relay) at (14.9,2.0) {};
+  \icoSupabase{13.75}{2.35}{0.7}\node[anchor=west] at (14.4,2.0) {\textbf{Cloud relay}};
+  \draw[wire] (web.east) -- (browser.west);
+  \draw[dwire] (pub.east) -- (relay.west);
+  \node[note] at (14.9,0.95) {HTTPS 443, outbound only};
+\end{tikzpicture}
+\caption{Deployment today. The gateway is one process with two worker threads and a small web server. It is started by double-clicking \code{Tools/PlcGateway/start-gateway.cmd} (which runs \code{dotnet run}) and stops when that window is closed.}
+\end{figure}
+
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{36mm}>{\raggedright\arraybackslash}p{42mm}Y@{}}
+\toprule
+\textbf{Software} & \textbf{Runs on} & \textbf{Notes} \\
+\midrule
+PLC program (Structured Text) & Inside the Micro850 & Executes the machine sequence; unaware of the gateway \\
+PLC gateway (.NET 10) & Rig PC, as a console process & Source in \code{Tools/PlcGateway}; needs the .NET runtime; must stay running for live data \\
+Unity digital twin & Rig PC, Unity Editor & Reads the PLC directly with the same client; does not use the gateway \\
+Cloud relay & Supabase (managed PostgreSQL) & Stores the latest snapshot per machine; no application code of ours runs here except one SQL function \\
+Dashboard app & In the viewer's browser & Static files served by Vercel; all logic runs on the viewer's device \\
+\bottomrule
+\end{tabularx}
+
+Because the gateway is plain .NET with no Windows-only dependency, the same code can run on Linux. That is
+what makes the edge device in Section~\ref{sec:edge} a packaging change, not a rewrite.
+
+% ------------------------------------------------------------------ 3
+\section{How the PLC is read}
+
+The controller speaks EtherNet/IP, which carries the Common Industrial Protocol (CIP). Reading one variable is
+a CIP ``Read Tag'' request addressed by the variable's name. The gateway opens one connection and reuses it
+for every read.
+
+\begin{figure}[H]\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[edgebox,minimum width=30mm,minimum height=8mm] (g) at (3,0.6) {\textbf{Gateway}};
+  \node[box,minimum width=30mm,minimum height=8mm] (p) at (13,0.6) {\textbf{Micro850 PLC}};
+  \draw[line width=0.5pt,draw=sub] (3,0.2) -- (3,-10.9);
+  \draw[line width=0.5pt,draw=sub] (13,0.2) -- (13,-10.9);
+  \newcommand{\phase}[2]{\fill[soft] (0.2,#1+0.28) rectangle (15.8,#1-0.28); \node[hd,anchor=west] at (0.35,#1) {#2};}
+  \newcommand{\req}[3]{\draw[wire] (3,#1) -- (13,#1) node[pos=0.5,above,font=\scriptsize] {#3}; \node[font=\scriptsize\bfseries,text=sub,anchor=east] at (2.8,#1) {#2};}
+  \newcommand{\rsp}[2]{\draw[wire,dashed] (13,#1) -- (3,#1) node[pos=0.5,above,font=\scriptsize] {#2};}
+  \phase{-0.5}{DISCOVERY \,$\cdot$\, UDP 44818}
+  \req{-1.35}{1}{List Identity (0x63), broadcast on every network adapter}
+  \rsp{-2.1}{identity: IP address, product name ``2080-L50E-48QBB''}
+  \phase{-2.8}{SESSION \,$\cdot$\, TCP 44818}
+  \req{-3.65}{2}{Register Session (0x65)}
+  \rsp{-4.4}{session handle}
+  \req{-5.15}{3}{Forward Open (0x54) to the Message Router, transport class 3}
+  \rsp{-5.9}{connection ID}
+  \phase{-6.6}{IDENTIFY THE PROGRAM}
+  \req{-7.45}{4}{Read Tag ``K3\_STEP''}
+  \rsp{-8.2}{error: no such tag \quad (so not Kit 3; next probe ``HR\_STEP'' answers: Kit 1)}
+  \phase{-8.9}{POLL \,$\cdot$\, EVERY 120 ms}
+  \req{-9.75}{5}{Read Tag (0x4C), once for each name in the profile}
+  \rsp{-10.5}{type code + value}
+  \draw[draw=sub,line width=0.5pt] (1.6,-9.35) rectangle (14.4,-10.8); \node[font=\scriptsize\bfseries,text=sub,anchor=north west] at (1.65,-9.38) {loop};
+\end{tikzpicture}
+\caption{Connecting and polling. The gateway finds the controller by broadcast because the PLC gives itself a new link-local address from time to time. It then binds its socket to the adapter that heard the reply, which avoids other adapters that share the same address range.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \newcommand{\byte}[5]{\node[#5,minimum width=#3,minimum height=10mm,inner sep=1pt] at (#1,#2) {\textbf{\ttfamily #4}};}
+  \node[hd,anchor=west] at (0,1.0) {REQUEST \,$\cdot$\, inside a Send Unit Data frame (0x70)};
+  \byte{0.8}{0}{15mm}{4C}{edgebox}        \node[note] at (0.8,-0.85) {service};
+  \byte{2.45}{0}{15mm}{05}{subbox}        \node[note] at (2.45,-0.85) {path words};
+  \byte{4.1}{0}{15mm}{91}{subbox}         \node[note] at (4.1,-0.85) {symbol};
+  \byte{5.75}{0}{15mm}{07}{subbox}        \node[note] at (5.75,-0.85) {name length};
+  \byte{9.45}{0}{56mm}{48 52 5F 53 54 45 50}{cloud} \node[note] at (9.45,-0.85) {``HR\_STEP'' in ASCII};
+  \byte{13.1}{0}{14mm}{00}{subbox}        \node[note] at (13.1,-0.85) {pad};
+  \byte{14.95}{0}{20mm}{01 00}{subbox}    \node[note] at (14.95,-0.85) {element count};
+  \node[hd,anchor=west] at (0,-1.9) {REPLY};
+  \byte{0.8}{-2.9}{15mm}{CC}{edgebox}     \node[note] at (0.8,-3.75) {4C + 80};
+  \byte{2.45}{-2.9}{15mm}{00}{subbox}     \node[note] at (2.45,-3.75) {reserved};
+  \byte{4.1}{-2.9}{15mm}{00}{subbox}      \node[note] at (4.1,-3.75) {status ok};
+  \byte{5.75}{-2.9}{15mm}{00}{subbox}     \node[note] at (5.75,-3.75) {ext.\ size};
+  \byte{7.9}{-2.9}{26mm}{C3 00}{subbox}   \node[note] at (7.9,-3.75) {type: INT};
+  \byte{10.7}{-2.9}{26mm}{06 00}{cloud}   \node[note] at (10.7,-3.75) {value: step 6};
+\end{tikzpicture}
+\caption{A Read Tag request and reply, byte by byte. Names are matched without regard to case. Type codes handled: C1 BOOL, C2 SINT, C3 INT, C4 DINT (also TIME, in milliseconds), C6 to C8 unsigned.}
+\end{figure}
+
+\begin{minipage}[t]{0.53\textwidth}
+\subsection{What is read}
+\begin{tabularx}{\linewidth}{@{}lY@{}}
+\toprule
+\textbf{Group} & \textbf{Example tags} \\
+\midrule
+Sequence & \code{HR\_STEP}, \code{HR\_FAULTCODE} \\
+Status & \code{ST\_AUTORUNNING}, \code{ST\_FAULTED} \\
+Counters & \code{HR\_PARTSDONE}, \code{HR\_METALCOUNT} \\
+Raw inputs & \code{\_IO\_EM\_DI\_00} \dots\ \code{\_IO\_EM\_DI\_13} \\
+Raw outputs & \code{\_IO\_EM\_DO\_00} \dots\ \code{\_IO\_EM\_DO\_07} \\
+Settings & \code{CFG\_TRAVELTIME}, \code{CFG\_MOVETIMEOUT} \\
+\bottomrule
+\end{tabularx}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.43\textwidth}
+\subsection{Time budget of one poll}
+\begin{tikzpicture}
+\begin{axis}[xbar stacked,width=\linewidth,height=3.1cm,xmin=0,xmax=120,ytick=\empty,
+  xlabel={milliseconds},xlabel style={font=\scriptsize},tick label style={font=\scriptsize},
+  axis line style={draw=rule},bar width=9mm,enlarge y limits=0.6,
+  legend style={at={(0.5,1.25)},anchor=south,legend columns=2,draw=none,font=\scriptsize}]
+  \addplot[fill=edge,draw=none] coordinates {(26,0)};
+  \addplot[fill=rule,draw=none] coordinates {(94,0)};
+  \legend{reading about 40 tags (26 ms), waiting (94 ms)}
+\end{axis}
+\end{tikzpicture}
+
+{\small\color{sub}One tag read takes about 0.65 ms; a full scan was measured at 24 to 28 ms.}
+\end{minipage}
+
+\medskip
+Tags are read one per request. The protocol also allows several reads in one frame (the Multiple Service
+Packet); that is not implemented, and at 26 ms for a full scan it has not been needed.
+
+% ------------------------------------------------------------------ 4
+\section{Low-level design}
+
+\subsection{Gateway components}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \newcommand{\cls}[5]{\node[#5,minimum width=#4,align=left,inner sep=5pt] (#1) at #2 {#3};}
+  \cls{eip}{(2.2,3.9)}{\textbf{Micro800EipClient}\\{\scriptsize\ttfamily Discover()}\\{\scriptsize\ttfamily Connect()}\\{\scriptsize\ttfamily ReadInt(name)}\\{\scriptsize\ttfamily ReadBool(name)}}{40mm}{box}
+  \cls{prof}{(2.2,0.6)}{\textbf{Profile} {\scriptsize(JSON file)}\\{\scriptsize probe tag, variable names,}\\{\scriptsize steps, faults, I/O labels}}{40mm}{subbox}
+  \cls{poll}{(7.6,2.4)}{\textbf{Poller} {\scriptsize(thread)}\\{\scriptsize\ttfamily ReadPlc()}\\{\scriptsize\ttfamily SelectProfile()}\\{\scriptsize\ttfamily AddMachineState()}\\{\scriptsize\ttfamily Publish()}}{40mm}{edgebox}
+  \cls{hub}{(12.6,2.4)}{\textbf{StateHub}\\{\scriptsize\ttfamily Json}\\{\scriptsize\ttfamily Version}\\{\scriptsize\ttfamily CoreVersion}}{32mm}{box}
+  \cls{api}{(12.6,5.1)}{\textbf{HTTP API}\\{\scriptsize\ttfamily GET /api/state}\\{\scriptsize\ttfamily GET /api/stream}}{32mm}{box}
+  \cls{pub}{(12.6,-0.3)}{\textbf{CloudPublisher} {\scriptsize(thread)}\\{\scriptsize\ttfamily POST ingest\_machine\_state}}{44mm}{cloud}
+  \draw[wire] (poll.west |- eip.east) -- ++(-0.5,0) |- (eip.east);
+  \node[note] at (5.0,4.15) {reads tags};
+  \draw[wire] ([yshift=-4mm]poll.west) -- ++(-0.5,0) |- (prof.east);
+  \node[note] at (5.0,0.35) {which tags, what they mean};
+  \draw[wire] (poll) -- (hub) node[midway,above,note] {publishes};
+  \draw[wire] (api) -- (hub) node[midway,right,note] {serves latest};
+  \draw[wire] (pub) -- (hub) node[midway,right,note] {watches for changes};
+\end{tikzpicture}
+\caption{The gateway's parts. The poller and the cloud publisher are background threads; they share only the StateHub, which holds the latest snapshot as text and two version counters.}
+\end{figure}
+
+\subsection{Poll loop}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[x=1cm,y=1cm,node distance=6mm]
+  \node[term] (start) at (4,0) {Start of a poll};
+  \node[dec] (conn) at (4,-1.6) {Connected\\to the PLC?};
+  \node[proc] (disc) at (10.5,-1.6) {Broadcast, find the PLC,\\open session and connection};
+  \node[dec] (known) at (4,-3.9) {Program\\identified?};
+  \node[proc] (probe) at (10.5,-3.9) {Try each profile's probe tag;\\first that answers wins};
+  \node[proc] (read) at (4,-6.0) {Read the probe tag, then\\every tag in the profile};
+  \node[dec] (ok) at (4,-8.2) {Probe tag\\answered?};
+  \node[proc] (forget) at (10.5,-8.2) {Forget the program\\(a download happened)};
+  \node[proc] (derive) at (4,-10.3) {Derive step name, fault text,\\actuator positions, events, cycle time};
+  \node[dec] (chg) at (4,-12.5) {Changed, or\\1 s since last?};
+  \node[proc] (pubn) at (10.5,-12.5) {Publish the snapshot\\to the StateHub};
+  \node[term,minimum width=54mm] (wait) at (4,-14.5) {Wait until 120 ms have passed};
+  \draw[wire] (start) -- (conn);
+  \draw[wire] (conn) -- node[above,note] {no} (disc);
+  \draw[wire] (conn) -- node[right,note] {yes} (known);
+  \draw[wire] (disc) |- ([yshift=4mm]known.north) -- (known.north);
+  \draw[wire] (known) -- node[above,note] {no} (probe);
+  \draw[wire] (known) -- node[right,note] {yes} (read);
+  \draw[wire] (probe) |- ([yshift=4mm]read.north) -- (read.north);
+  \draw[wire] (read) -- (ok);
+  \draw[wire] (ok) -- node[above,note] {no} (forget);
+  \draw[wire] (ok) -- node[right,note] {yes} (derive);
+  \draw[wire] (derive) -- (chg);
+  \draw[wire] (chg) -- node[above,note] {yes} (pubn);
+  \draw[wire] (chg) -- node[right,note] {no} (wait);
+  \draw[wire] (pubn.south) |- ([yshift=1.5mm]wait.east);
+  \draw[wire] (forget.east) -- ++(0.8,0) |- ([yshift=-1.5mm]wait.east);
+  \draw[wire] (wait.west) -- ++(-1.2,0) |- (start.west);
+  \node[note,align=center] at (10.5,-9.9) {a failed read of any other tag\\just leaves that value empty};
+\end{tikzpicture}
+\caption{Flowchart of one poll. A connection error anywhere jumps to ``not connected'' and the loop waits 2 s before trying again.}
+\end{figure}
+
+\subsection{What the gateway adds to the raw values}
+\begin{itemize}
+  \item \textbf{Meaning.} Step 6 becomes ``Upper eject''; fault 9 becomes ``Homing did not finish''.
+  \item \textbf{Actuator position.} Worked out from the two valve coils. With neither coil on, the last commanded position is kept, because these valves hold their place.
+  \item \textbf{Events.} A rolling log of step changes, faults, parts counted and link changes.
+  \item \textbf{Cycle time.} From the feed step to the part counter increasing.
+\end{itemize}
+
+\subsection{Snapshot contract}
+Every consumer receives the same document. It is self-describing: labels and step names travel with the
+values, so the app needs no knowledge of a particular machine.
+\begin{lstlisting}
+{
+  "ts": "2026-11-18T10:25:32.444Z",
+  "gateway": { "version": "0.1.0", "mode": "plc", "readOnly": true },
+  "link":    { "connected": true, "plc": "169.254.177.240", "product": "2080-L50E-48QBB", "readMs": 24 },
+  "kit":     { "id": "kit1", "name": "Kit 1", "steps": [ { "id": 6, "name": "Upper eject" } ] },
+  "status":  { "state": "fault", "step": 90, "faultCode": 9, "faultText": "Homing did not finish" },
+  "counters":  [ { "id": "parts", "label": "Parts sorted", "value": 0 } ],
+  "inputs":    [ { "id": "DI-2", "label": "2A pulled in", "on": false } ],
+  "outputs":   [ { "id": "DO-6", "label": "Lift up", "on": false } ],
+  "actuators": [ { "id": "4A", "label": "Lift", "positionLabel": "Up", "driven": false } ],
+  "cycle":   { "lastSeconds": null, "averageSeconds": null, "history": [] },
+  "events":  [ { "ts": "...", "kind": "fault", "text": "Fault 9 - Homing did not finish" } ]
+}
+\end{lstlisting}
+
+\subsection{Interfaces}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{37mm}>{\raggedright\arraybackslash}p{33mm}>{\raggedright\arraybackslash}p{38mm}Y@{}}
+\toprule
+\textbf{Interface} & \textbf{Direction} & \textbf{Protocol} & \textbf{Notes} \\
+\midrule
+PLC and gateway & Gateway asks & EtherNet/IP, UDP + TCP 44818 & Read Tag only \\
+\code{GET /api/state} & Local consumers pull & HTTP, port 8787 & Latest snapshot \\
+\code{GET /api/stream} & Gateway pushes & Server-Sent Events & On change; keep-alive every 15 s \\
+Any other HTTP method & -- & -- & Refused with status 405 \\
+Gateway to relay & Outbound only & HTTPS, port 443 & \code{rpc/ingest\_machine\_state}; token checked \\
+Relay to app & App subscribes & Secure WebSocket, 443 & Row changes; a 10 s re-read as a safety net \\
+PLC and Unity twin & Twin asks & EtherNet/IP & Same read-only client, own thread \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Publishing to the cloud}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[term] (s) at (3.2,0) {Every 100 ms};
+  \node[dec] (c) at (3.2,-1.7) {Content changed\\and 400 ms since\\last push?};
+  \node[dec] (h) at (3.2,-4.4) {5 s since\\last push?};
+  \node[proc] (p) at (9.8,-1.7) {POST snapshot + machine id\\+ token to the relay function};
+  \node[dec] (t) at (9.8,-4.4) {Token hash\\matches?};
+  \node[proc,minimum width=30mm] (u) at (14.4,-4.4) {Upsert the row;\\realtime feed fires};
+  \node[proc,minimum width=30mm] (r) at (14.4,-6.4) {Reject (42501)};
+  \node[term] (e) at (3.2,-6.4) {Do nothing};
+  \draw[wire] (s) -- (c);
+  \draw[wire] (c) -- node[above,note] {yes} (p);
+  \draw[wire] (c) -- node[right,note] {no} (h);
+  \draw[wire] (h) -- node[right,note] {no} (e);
+  \draw[wire] (h.east) -- node[above,note] {yes} ++(1.5,0) |- ([yshift=-3mm]p.west);
+  \draw[wire] (p) -- (t);
+  \draw[wire] (t) -- node[above,note] {yes} (u);
+  \draw[wire] (t.south) |- node[pos=0.25,right,note] {no} (r.west);
+  \begin{scope}[on background layer]
+    \node[draw=data,dashed,rounded corners=3pt,fit=(t)(u)(r),inner sep=6pt,label={[font=\scriptsize\bfseries,text=data]above:CLOUD RELAY}] {};
+  \end{scope}
+\end{tikzpicture}
+\caption{Flowchart of the cloud publisher (left, on the rig PC) and the relay's check (right, in the database). Publishing is throttled to one push per 400 ms while values change and one every 5 s when nothing does.}
+\end{figure}
+
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{46mm}YY@{}}
+\toprule
+\textbf{Relay object} & \textbf{Purpose} & \textbf{Access} \\
+\midrule
+\code{machine\_state} (table) & One row per machine: id, snapshot, updated\_at & Anyone may read; nobody may write directly \\
+\code{machine\_ingest\_keys} (table) & SHA-256 of each machine's token & No access through the API \\
+\code{ingest\_machine\_state()} & Checks the token, then upserts the row & Callable with the public key \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Freshness in the app}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[state] (c) at (0,0) {Connecting};
+  \node[state,draw=data,fill=datasoft] (l) at (6.2,0) {\textbf{Live}};
+  \node[state,draw=warn,fill=warnsoft] (s) at (13.0,0) {Stale};
+  \node[state,draw=warn,fill=warnsoft] (u) at (0,-2.6) {Unreachable};
+  \fill[ink] (-2.3,0) circle (2pt);
+  \draw[wire] (-2.3,0) -- (c);
+  \draw[wire] (c) -- node[above,note] {first snapshot} (l);
+  \draw[wire] (c) -- node[left,note] {none in 6 s} (u);
+  \draw[wire] (u) -| node[pos=0.3,above,note] {snapshot arrives} (l);
+  \draw[wire] ([yshift=2mm]l.east) -- node[above,note] {no new snapshot: 4 s direct, 20 s cloud} ([yshift=2mm]s.west);
+  \draw[wire] ([yshift=-2mm]s.west) -- node[below,note] {snapshot arrives} ([yshift=-2mm]l.east);
+\end{tikzpicture}
+\caption{The app's view of data freshness. ``Stale'' dims the values and labels them ``last known''. The app never presents an old reading as current.}
+\end{figure}
+
+\subsection{Digital twin link}
+The Unity twin uses the same EtherNet/IP client on its own thread and reads the PLC directly; it does not go
+through the gateway. While the link is live, the twin's own sequencer and manual controls are switched off,
+its cylinders follow the real solenoid outputs, and the workpiece is coloured once the real sensors classify
+it. If the link drops, the twin returns to offline simulation.
+
+% ------------------------------------------------------------------ 5
+\section{Proposal: a compact edge device}\label{sec:edge}
+
+Today the ``edge'' is a Windows PC on the bench. It works, but it is large, it is someone's workstation, and
+it sends far more data than it needs to. A small dedicated device fixes all three. \textbf{Everything in this
+section is a proposal; none of it is built yet.}
+
+\begin{figure}[H]\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[hd,anchor=west] at (0,7.75) {MACHINE NETWORK (OT)}; \node[hd,anchor=west] at (3.9,7.75) {EDGE DEVICE}; \node[hd,anchor=west] at (10.7,7.75) {CLOUD}; \node[hd,anchor=west] at (14.3,7.75) {USERS};
+  \node[box,minimum width=30mm,minimum height=11mm] (p1) at (1.6,6.4) {};
+  \icoPlc{0.25}{6.75}{0.7}\node[anchor=west] at (0.9,6.4) {\textbf{PLC 1}};
+  \node[box,minimum width=30mm,minimum height=11mm] (p2) at (1.6,4.7) {};
+  \icoPlc{0.25}{5.05}{0.7}\node[anchor=west] at (0.9,4.7) {\textbf{PLC 2}};
+  \node[subbox,minimum width=30mm,minimum height=11mm] (p3) at (1.6,3.0) {\textbf{Other controllers}\\[-1pt]{\scriptsize Modbus TCP, OPC UA (later)}};
+
+  \draw[draw=edge,line width=0.9pt,rounded corners=4pt,fill=edgesoft] (3.9,0.6) rectangle (10.1,7.4);
+  \icoDotnet{4.05}{7.25}{0.7}
+  \node[note,anchor=west] at (4.75,6.98) {Linux, container, same gateway code};
+  \node[subbox,minimum width=27mm,minimum height=11mm] (col) at (5.5,5.7) {\textbf{Collector}\\[-1pt]{\scriptsize read tags, port 1}};
+  \node[subbox,minimum width=27mm,minimum height=11mm] (mod) at (8.55,5.7) {\textbf{Model}\\[-1pt]{\scriptsize profile to state}};
+  \node[subbox,minimum width=27mm,minimum height=11mm] (flt) at (5.5,3.9) {\textbf{Change filter}\\[-1pt]{\scriptsize only what changed}};
+  \node[subbox,minimum width=27mm,minimum height=11mm] (buf) at (8.55,3.9) {\textbf{Store and forward}\\[-1pt]{\scriptsize disk queue offline}};
+  \node[subbox,minimum width=27mm,minimum height=11mm] (loc) at (5.5,2.1) {\textbf{Local dashboard}\\[-1pt]{\scriptsize no internet needed}};
+  \node[subbox,minimum width=27mm,minimum height=11mm] (pub) at (8.55,2.1) {\textbf{Publisher}\\[-1pt]{\scriptsize TLS, device identity}};
+  \draw[wire] (col) -- (mod); \draw[wire] (mod.south) -- ++(0,-0.3) -| (flt.north); \draw[wire] (flt) -- (buf); \draw[wire] (buf) -- (pub);
+  \node[note] at (7.0,1.02) {port 1: machines \quad port 2: plant network\\no routing between them};
+  \draw[wire] (p1.east) -- ++(0.35,0) |- (col.west);
+  \draw[wire] (p2.east) -- ++(0.35,0);
+  \draw[wire,dashed] (p3.east) -- ++(0.35,0) -- ++(0,1.7);
+
+  \node[cloud,minimum width=28mm,minimum height=11mm] (ing) at (12.2,5.7) {};
+  \icoMqtt{10.95}{6.05}{0.7}\node[anchor=west] at (11.6,5.85) {\textbf{Ingest}}; \node[note,anchor=west] at (11.6,5.45) {MQTT or HTTPS};
+  \node[cloud,minimum width=28mm,minimum height=11mm] (lat) at (12.2,3.9) {\textbf{Latest state}\\[-1pt]{\scriptsize one row per machine}};
+  \node[cloud,minimum width=28mm,minimum height=11mm] (his) at (12.2,2.1) {};
+  \icoInfluxdb{10.95}{2.45}{0.7}\node[anchor=west] at (11.6,2.25) {\textbf{History}}; \node[note,anchor=west] at (11.6,1.85) {time series};
+  \draw[ewire] (pub.east) -- ++(0.55,0) |- (ing.west);
+  \node[note,text=edge] at (12.2,0.8) {compact messages,\\outbound only};
+  \draw[wire] (ing) -- (lat); \draw[wire] (lat) -- (his);
+
+  \node[box,minimum width=24mm,minimum height=11mm] (dash) at (15.5,3.9) {};
+  \icoReact{14.45}{4.25}{0.7}\node[anchor=west] at (15.1,3.9) {\textbf{Dashboard}};
+  \node[box,minimum width=24mm,minimum height=11mm] (an) at (15.5,2.1) {};
+  \icoGrafana{14.45}{2.45}{0.7}\node[anchor=west] at (15.1,2.25) {\textbf{Analytics}}; \node[note,anchor=west] at (15.1,1.85) {optional};
+  \draw[wire] (lat) -- (dash); \draw[wire] (his) -- (an);
+\end{tikzpicture}
+\caption{Proposed high-level design with an edge device (green is new). The cloud side adds a history store, which the current system does not have: today only the latest state is kept.}
+\end{figure}
+
+\subsection{Making the data compact}
+The gateway currently sends the whole self-describing snapshot every time: about 5 kB, of which almost all
+is labels, step names and an event log that did not change. Four steps shrink it.
+\begin{enumerate}
+  \item \textbf{Send the description once.} Labels, step names and fault texts are static. Publish the profile when it changes and refer to it by version afterwards.
+  \item \textbf{Report by exception.} Send a value only when it changes, plus a heartbeat so the cloud knows the device is alive.
+  \item \textbf{Pack the bits.} Kit 1's 22 inputs and outputs fit in 3 bytes. With step, fault, material, three counters and a timestamp, a full state frame is 17 bytes.
+  \item \textbf{Batch and compress when the link is poor.} Group several frames into one message.
+\end{enumerate}
+
+\begin{figure}[H]\centering
+\begin{minipage}{0.56\textwidth}\centering
+\begin{tikzpicture}
+\begin{axis}[xbar,xmode=log,width=0.8\linewidth,height=5.3cm,xmin=8,xmax=200000,
+  ytick={1,2,3,4},yticklabels={Binary frame,Values only (JSON),Snapshot (gzip),Snapshot (JSON)},
+  tick label style={font=\scriptsize},xlabel={bytes per message (log scale)},xlabel style={font=\scriptsize},
+  nodes near coords,nodes near coords style={font=\scriptsize,text=ink},point meta=rawx,
+  axis line style={draw=rule},bar width=4.2mm,bar shift=0pt,log origin=infty,enlarge y limits=0.2,xmajorgrids,grid style={draw=rule}]
+  \addplot[fill=edge,draw=none] coordinates {(17,1) (136,2) (1378,3)};
+  \addplot[fill=sub,draw=none,bar shift=0pt] coordinates {(4960,4)};
+\end{axis}
+\end{tikzpicture}
+\end{minipage}\hfill
+\begin{minipage}{0.42\textwidth}\centering
+\begin{tikzpicture}
+\begin{axis}[xbar,xmode=log,log origin=infty,width=\linewidth,height=5.3cm,xmin=0.1,xmax=6000,
+  ytick={1,2,3,4},yticklabels={},
+  tick label style={font=\scriptsize},xlabel={megabytes per day (log scale)},xlabel style={font=\scriptsize},
+  axis line style={draw=rule},bar width=2.4mm,enlarge y limits=0.2,xmajorgrids,grid style={draw=rule},
+  legend style={at={(0.5,1.04)},anchor=south,legend columns=2,font=\scriptsize,draw=none}]
+  \addplot[fill=ink,draw=none] coordinates {(3.7,1) (29.4,2) (298,3) (1071,4)};
+  \addplot[fill=rule,draw=none] coordinates {(0.29,1) (2.3,2) (23.8,3) (85.7,4)};
+  \legend{running: 2.5 msg/s, idle: 1 per 5 s}
+\end{axis}
+\end{tikzpicture}
+\end{minipage}
+\caption{Left: bytes per state message for Kit 1. The three larger values were measured on the running gateway on 18 November 2026; the binary frame is calculated from the field list above. Right: resulting payload per day, calculated from those sizes and the configured publish rates, without protocol overhead.}
+\end{figure}
+
+\begin{tabularx}{\textwidth}{@{}Yrrrl@{}}
+\toprule
+\textbf{Encoding} & \textbf{Bytes / message} & \textbf{MB / day running} & \textbf{MB / day idle} & \textbf{Basis} \\
+\midrule
+Full snapshot, JSON (today) & 4,960 & 1,071 & 85.7 & measured size \\
+Full snapshot, gzip & 1,378 & 298 & 23.8 & measured size \\
+Values only, JSON & 136 & 29.4 & 2.3 & measured size \\
+Values only, binary frame & 17 & 3.7 & 0.29 & calculated \\
+\bottomrule
+\end{tabularx}
+
+The ``running'' column assumes the machine changes state at the maximum publish rate all day, which is a
+ceiling. The point is the ratio: about 290 times less data, which is the difference between needing a wired
+connection and running comfortably on a cellular modem.
+
+\subsection{What the device needs, and what changes in the software}
+\begin{minipage}[t]{0.455\textwidth}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{25mm}Y@{}}
+\toprule
+\textbf{Hardware} & \textbf{Why} \\
+\midrule
+Two Ethernet ports & Machines on one, plant network on the other, no routing between \\
+24 V DC, DIN rail, fanless & It lives in the control cabinet \\
+64-bit Linux, ARM or x86 & .NET runs on both \\
+Durable local storage & Queue while the internet is down \\
+Optional cellular modem & Sites with no usable network \\
+Hardware watchdog & Recover without a visit \\
+\bottomrule
+\end{tabularx}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.485\textwidth}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{20mm}Y@{}}
+\toprule
+\textbf{Software} & \textbf{Change} \\
+\midrule
+Packaging & Build for Linux; container or service that starts on boot \\
+Machines & One collector per PLC; fixed PLC addresses \\
+Publishing & Change filter, binary frames, profile sent once \\
+Resilience & Disk queue with a size limit; replay in order \\
+Transport & MQTT, per-device certificates, a topic per machine, e.g.\ \code{site/line/kit1/state} \\
+Management & Remote configuration, signed updates \\
+Cloud & Decode frames, keep history, alert on faults and silence \\
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\medskip
+A single-board industrial computer in the Raspberry Pi Compute Module class is the smallest that fits; a
+commercial industrial gateway fits where certified hardware is required. The gateway's resource use on such
+hardware has not been measured.
+
+\fcolorbox{warn}{warnsoft}{\parbox{\dimexpr\textwidth-2\fboxsep-2\fboxrule}{\textbf{Unchanged by design.} The edge device still only reads. The machine-network port never carries traffic from the plant network or the internet, and the device still only opens outbound connections.}}
+
+% ------------------------------------------------------------------ 6
+\section{Client guide}
+
+What a client needs, what they do, and what they get. This describes the system as it runs today.
+
+\subsection{What you need}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{36mm}Y@{}}
+\toprule
+\textbf{Item} & \textbf{Detail} \\
+\midrule
+Controller & Allen-Bradley Micro800 family with EtherNet/IP (tested on a Micro850 2080-L50E-48QBB). The values you want to see must be global variables in the PLC project. \\
+Network & One Ethernet cable from the gateway computer to the PLC. Outbound HTTPS (port 443) from that computer for remote access. No inbound ports. \\
+Gateway computer & Today a Windows PC with the .NET runtime. It must stay on and connected for live data. \\
+Machine description & A list of the variables to read and what they mean (Section~\ref{sec:profile}). \\
+Nothing in the PLC & No program change, no mapping, no add-on module. The controller is not modified. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Getting a machine online}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[proc,minimum width=28mm] (a) at (0,0) {Connect the gateway\\to the PLC};
+  \node[proc,minimum width=28mm] (b) at (3.6,0) {Write the\\machine profile};
+  \node[proc,minimum width=28mm] (c) at (7.2,0) {Start the gateway};
+  \node[dec] (d) at (11.4,0) {Local page shows\\live values?};
+  \node[proc,minimum width=38mm] (e) at (11.4,-2.5) {Check the cable, PLC mode\\and variable names};
+  \node[proc,minimum width=30mm] (f) at (11.4,2.4) {Add the cloud key\\and machine token};
+  \node[term,minimum width=34mm] (g) at (5.4,2.4) {Open the dashboard\\from anywhere};
+  \draw[wire] (a) -- (b); \draw[wire] (b) -- (c); \draw[wire] (c) -- (d);
+  \draw[wire] (d) -- node[right,note] {no} (e);
+  \draw[wire] (e.west) -| (c.south);
+  \draw[wire] (d) -- node[right,note] {yes} (f);
+  \draw[wire] (f) -- (g);
+\end{tikzpicture}
+\caption{Onboarding. The local page at \code{http://localhost:8787} proves the PLC side before the cloud is involved.}
+\end{figure}
+
+\subsection{Describing your machine}\label{sec:profile}
+A profile is one JSON file. It names the variables and gives each a label. No code changes are needed for a
+new machine.
+\begin{lstlisting}
+{ "id": "press-2", "name": "Press 2", "probe": "PR_STEP",
+  "vars":   { "step": "PR_STEP", "fault": "PR_FAULT", "running": "PR_RUNNING", "parts": "PR_COUNT" },
+  "steps":  [ { "id": 0, "name": "Idle" }, { "id": 10, "name": "Clamp" } ],
+  "faults": { "1": "Emergency stop pressed" },
+  "inputs":  [ { "id": "DI-0", "label": "Guard closed", "var": "_IO_EM_DI_00" } ],
+  "outputs": [ { "id": "DO-0", "label": "Clamp",        "var": "_IO_EM_DO_00" } ] }
+\end{lstlisting}
+
+\subsection{Reading the dashboard}
+\begin{minipage}[t]{0.39\textwidth}\vspace{0pt}
+\includegraphics[width=\linewidth]{figures/floor.jpg}
+
+{\small\color{sub}The floor view of the hosted app, here running its built-in simulation.}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.55\textwidth}\vspace{0pt}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{30mm}Y@{}}
+\toprule
+\textbf{You see} & \textbf{It means} \\
+\midrule
+Running, Idle, Homing & The controller's own sequence state \\
+Fault, with number and text & The program stopped itself; the Signals page shows which input is wrong \\
+Stale, values dimmed & No new reading recently; values are the last known \\
+PLC offline & The gateway runs but cannot reach the controller \\
+No data & The gateway is not sending: computer off or no internet \\
+Not connected & No controller is running that station's program \\
+Simulated & Demonstration data generated in the app \\
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\subsection{Security position}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{62mm}Y@{}}
+\toprule
+\textbf{Question} & \textbf{Answer today} \\
+\midrule
+Can this system start, stop or change my machine? & No. It implements reading only, at the protocol level and at the web API. \\
+Does it open my plant network to the internet? & No. The gateway makes outbound HTTPS connections only. \\
+Who can send data as my machine? & Only a holder of that machine's token. The cloud stores the token's hash, not the token. \\
+Who can view my machine's state? & \gap\ Anyone who has the dashboard address. There is no sign-in yet. \\
+Is history kept? & \gap\ No. Only the latest state is stored; the event log lives in the gateway's memory and resets when it restarts. \\
+What happens if the internet drops? & \gap\ Readings in that period are not sent later. The local page keeps working. \\
+\bottomrule
+\end{tabularx}
+
+% ------------------------------------------------------------------ 7
+\section{Built versus proposed}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{62mm}lY@{}}
+\toprule
+\textbf{Capability} & \textbf{State} & \textbf{Evidence or next step} \\
+\midrule
+Read Micro850 tags by name, read-only & \built & Running against the rig; 24 to 28 ms per full scan \\
+Automatic PLC discovery and reconnect & \built & Found the PLC again after its address changed \\
+Program identification and profiles & \built & Kit 1, Kit 3 and an unknown-program fallback \\
+Local API and live stream & \built & Checked; write methods refused \\
+Cloud relay with token ingest & \built & Real PLC state seen in the hosted app; wrong token rejected \\
+Dashboard: floor, station, signals, log, 3D & \built & Hosted; reported a real homing fault on 18 November \\
+Unity twin live link & \built & Confirmed for Kit 1 \\
+Twin and gateway reading at the same time & \gap & Each ran alongside CCW; not yet both together \\
+Sign-in and per-user access & \gap & Required before wider sharing \\
+History and trends & \prop & Time-series store in the cloud \\
+Edge device, Linux packaging & \prop & Section~\ref{sec:edge} \\
+Compact encoding, store and forward, MQTT & \prop & Section~\ref{sec:edge} \\
+Commands from the app & \prop & Deliberately absent; only after sign-in, on a separate path \\
+\bottomrule
+\end{tabularx}
+
+\vfill
+{\scriptsize\color{sub}Product logos identify the technologies used or proposed and are trademarks of their owners; their use here does not imply endorsement.
+Sources: \code{Tools/PlcGateway}, \code{Assets/Scripts/Runtime/PlcLink}, \code{Dashboard/}, and readings taken from the controller.
+Diagrams are drawn with TikZ and charts with pgfplots.}
+
+\end{document}

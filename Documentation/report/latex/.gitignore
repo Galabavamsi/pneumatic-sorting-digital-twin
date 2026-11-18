@@ -1,0 +1,9 @@
+*.aux
+*.log
+*.out
+*.toc
+build.log
+preview/
+t/
+fig2.tex
+system-architecture.pdf
