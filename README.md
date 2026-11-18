@@ -4,9 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20prototype-19a974)](#project-status)
 
-An open-source Unity digital-twin workspace for modular electropneumatic automation kits. Kits 1–3 provide complete offline sorting, stamping, vacuum-transfer, and material-routing simulations.
+An open-source Unity digital-twin workspace for modular electropneumatic automation kits. Kits 1–3 provide complete offline sorting, stamping, vacuum-transfer, and material-routing simulations. Kits 4–5 are modelled from their CAD and run as simulated twins in the web dashboard and its AR view.
 
-The current release runs completely offline. No PLC or XR headset is required.
+The Unity simulations run completely offline: no PLC or XR headset is required. The [dashboard](Dashboard/README.md) adds the live side: it reads the real Micro850 controller for Kits 1–3 and shows every kit in a browser or a Meta Quest headset.
 
 ## Included digital twins
 
@@ -15,17 +15,21 @@ The current release runs completely offline. No PLC or XR headset is required.
 | **Kit 1** | Metal/plastic sorting | 63 | 4 | Feed → detect → lift → route → bin |
 | **Kit 2** | Material-dependent stamping | 66 | 4 | Feed → detect → stamp → eject → bin |
 | **Kit 3** | Color stamping and vacuum sorting | 69 | 4 | Feed → stamp → vacuum pick → rotate → bin |
+| **Kit 4** | Conveyor sorting | 83 | 3 + conveyor | Feed → convey → detect → end bin, or divert → side bin |
+| **Kit 5** | Assembly and inspection | 92 | 4 + conveyor | Feed block → insert A → insert B → convey → inspect → accept or reject |
+
+Kits 1–3 are Unity simulations validated against their checklists, and each has a PLC program for the real rig. Kits 4–5 have no Unity scene and no PLC program yet: their twins run in the web dashboard and the AR view, and their sequences are **worked out from the CAD and not confirmed** on real hardware.
 
 ## Presentation package
 
 The repository includes a slide-ready [presentation context and asset index](Presentation/kit-digital-twin/PRESENTATION_CONTEXT.md) with:
 
 - colored assembled CAD renders for Kits 1–5;
-- 720p working-machine videos for the validated Kit 1–3 simulations;
+- 720p working-machine videos for the validated Kit 1–3 simulations, and a recording of the AR view on a Meta Quest 3;
 - CAD-complexity, assembly-envelope, and simulation-capability plots;
 - reusable CSV data, suggested slide structure, speaker notes, validation boundaries, and future work.
 
-Kits 4–5 are presented as CAD assemblies only; no completed simulation is claimed for them.
+In that package Kits 4–5 are presented as CAD assemblies only. Their simulated twins in the dashboard came later and follow an assumed sequence; no validated simulation is claimed for them.
 
 ## AR view on Meta Quest
 
@@ -88,6 +92,32 @@ production counts, faults, and a live engineering dashboard.
 
 - Scene: `Assets/Scenes/Kit3Viewer.unity`
 - Validation: [Kit 3 acceptance checklist](Documentation/KIT3_VALIDATION.md)
+
+## Kit 4 — conveyor sorting module
+
+![Kit 4 assembled CAD, coloured by component](Presentation/kit-digital-twin/images/kit-4-assembled-colored.png)
+
+Kit 4 feeds a workpiece from a magazine onto a conveyor, carries it under a sensor, and sorts it: one class rides on into the bin at the end of the belt, the other is pushed off the belt and then into a side bin. The kit's documented scope also covers a load cell with an analog input and VFD speed control of the conveyor.
+
+- 83 CAD component groups, converted from the Solid Edge IGES export so that every part, and each cylinder's rod, is its own mesh
+- Simulated twin in the [dashboard](Dashboard/README.md) and AR view: feed cylinder, diverter, side ejector, and the conveyor at an assumed 70 mm/s
+- Step sequence, strokes and directions are **assumed from the geometry**; the fourth cylinder, facing the diverter across the belt, is left still because its job is not known
+- Not yet done: Unity scene, PLC program, wiring, load-cell scaling, VFD speed model
+
+- Twin definition: `Dashboard/app/src/kits/twins45.ts`, simulation: `Dashboard/app/src/kits/kit45.sim.ts`
+
+## Kit 5 — assembly and inspection module
+
+![Kit 5 assembled CAD, coloured by component](Presentation/kit-digital-twin/images/kit-5-assembled-colored.png)
+
+Kit 5 builds a small assembly: a block is pushed to the middle, an insert is pushed into it from each of two side magazines, and the conveyor carries the assembly under a sensor. Good assemblies ride on into the end bin; rejects are pushed off into a side bin.
+
+- 92 CAD component groups, the most of the five kits, converted from the IGES export the same way as Kit 4
+- Simulated twin in the dashboard and AR view: block feed, two insert cylinders, reject cylinder and the conveyor; the inserts travel with the block once pushed in
+- Step sequence, strokes and the accept / reject rule are **assumed from the geometry** and not confirmed on the real kit
+- Not yet done: Unity scene, PLC program, wiring, recipe-dependent sequencing
+
+- Twin definition: `Dashboard/app/src/kits/twins45.ts`, simulation: `Dashboard/app/src/kits/kit45.sim.ts`
 
 ## Shared simulation platform
 

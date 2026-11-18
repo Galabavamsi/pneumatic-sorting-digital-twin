@@ -80,7 +80,7 @@ Type: Barlow Condensed (labels), Barlow (text), IBM Plex Mono (values).
 | Station | Live from the PLC | Simulation | 3D model |
 |---|---|---|---|
 | Kit 1, metal / plastic sort | yes, when the Kit 1 program is in the controller | yes | yes |
-| Kit 2, two-station stamp and sort | no: Kit 2 has no PLC program or wiring yet | yes, following the Unity twin's sequence | yes |
+| Kit 2, two-station stamp and sort | yes, when the Kit 2 program is in the controller | yes, following the Unity twin's sequence | yes |
 | Kit 3, stamp and vacuum sort | yes, when the Kit 3 program is in the controller | yes | yes |
 | Kit 4, conveyor sort | no: no PLC program or wiring yet | yes, sequence **assumed** from the CAD | yes |
 | Kit 5, assembly and inspection | no: no PLC program or wiring yet | yes, sequence **assumed** from the CAD | yes |
