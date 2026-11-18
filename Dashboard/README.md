@@ -161,8 +161,13 @@ forwards the development server to the headset over USB and opens the page there
 ### Quest app
 
 `Dashboard/quest-app` packages the hosted site as an installable Quest app (a Trusted Web Activity
-made with Meta's Bubblewrap, package `app.vercel.rigmonitor.quest`). It shows the same site in its
-own window, so a new deployment of the site updates the app without a reinstall.
+made with Meta's Bubblewrap, package `app.vercel.rigmonitor.quest`). It loads the hosted site at
+`/?ar=all&auto=1` and goes straight into AR, so a new deployment of the site updates the app
+without a reinstall. Confirmed working on a Quest 3 on 2026-11-19.
+
+It must stay an **immersive** app (`horizonOSAppMode` in `twa-manifest.json`): packaged as a 2D
+window the headset offers the page no AR. An immersive app has no 2D page, which is why the AR view
+starts its session by itself (`auto=1`) and has the Show panel to pick stations.
 
 - `twa-manifest.json` is the project; the site's `public/manifest.json` and
   `public/.well-known/assetlinks.json` (which names the signing certificate) belong to it.
