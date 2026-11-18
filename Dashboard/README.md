@@ -137,6 +137,31 @@ The converter writes a `.report.json` beside the GLB with every mesh's box; the 
 sequence are worked out from the geometry and are **not confirmed**. Kit 4's fourth cylinder,
 which faces the diverter across the belt, is left still because its job is not known.
 
+## AR view (Meta Quest)
+
+"AR view" at the top of the page (or `?ar=all`, `?ar=kit1` in the address) shows the stations in
+the room through a headset's passthrough, using WebXR in the headset's own browser: no app to
+install. `src/components/ArView.tsx` reuses the models and motion of the 3D view.
+
+- **All stations around me**: every station on an arc at half size, for looking at the lab from
+  somewhere else.
+- **One station at full size**: to stand beside the real one.
+
+A station whose program is in the controller follows the live feed; every other station plays the
+in-app simulation. Each label says which ("Live from the PLC" / "Simulated").
+
+In AR: point at a station and hold the trigger to carry it. While holding, the thumbstick turns it
+(left / right) and moves it nearer or further (up / down), A / X makes it smaller, B / Y larger,
+and the grip sets it back to full size. Where a station was put is not remembered between sessions.
+
+WebXR only runs on `https` or `localhost`. Over USB, `quest-usb.cmd` in `Dashboard/app` forwards
+the development server to the headset and opens the page there. For use away from the rig PC the
+web app has to be hosted on https (not done yet).
+
+**Status on 2026-11-19:** checked in a desktop browser (layout, labels, live / simulated feeds),
+and entering AR was confirmed on a Quest 3 over USB. Each control (carry, turn, resize) has not
+been checked one by one.
+
 ## Simulation
 
 "Simulation" at the top of the page runs all three stations inside the app (`src/sim/engine.ts`

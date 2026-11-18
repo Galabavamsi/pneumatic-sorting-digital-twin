@@ -1,0 +1,12 @@
+{
+  "name": "Rig Monitor",
+  "short_name": "Rig Monitor",
+  "description": "Read-only dashboard and AR view of the pneumatic kits.",
+  "start_url": "/?ar",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#121311",
+  "theme_color": "#121311",
+  "icons": [{ "src": "/icon-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }]
+}

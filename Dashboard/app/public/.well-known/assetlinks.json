@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.vercel.rigmonitor.quest",
+      "sha256_cert_fingerprints": ["B6:E6:57:4B:3E:66:38:DA:7C:F3:F5:E2:40:25:58:7C:D0:6A:74:CE:01:90:02:89:2D:BC:18:61:7F:35:E0:88"]
+    }
+  }
+]

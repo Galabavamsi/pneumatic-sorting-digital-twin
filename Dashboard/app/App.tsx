@@ -10,6 +10,8 @@ import { IBMPlexMono_400Regular } from '@expo-google-fonts/ibm-plex-mono/400Regu
 import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono/500Medium';
 import { DEFAULT_VIEW, Machine, Source, useFactory, View as DataView } from './src/data/useFactory';
 import { Twin3D } from './src/components/Twin3D';
+import { ArPreset, ArView } from './src/components/ArView';
+import { STATIONS } from './src/kits/stations';
 import { conditionOf, Floor } from './src/components/Floor';
 import { font, Palette, radius, space, usePalette } from './src/theme';
 import type { Freshness, Snapshot } from './src/types';
@@ -23,6 +25,15 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'log', label: 'Log' },
   { id: 'about', label: 'About' },
 ];
+
+// '?ar' in the address opens the AR view straight away: '?ar=all', or '?ar=kit1' for one station.
+function arFromAddress(): ArPreset | null | undefined {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+  const value = new URLSearchParams(window.location.search).get('ar');
+  if (value === null) return undefined;
+  if (value === 'all') return { kits: STATIONS.map((s) => s.id), scale: 0.5 };
+  return STATIONS.some((s) => s.id === value) ? { kits: [value], scale: 1 } : null;
+}
 
 export default function App() {
   const p = usePalette();
@@ -38,11 +49,17 @@ export default function App() {
   const { machines, feed, source, now } = useFactory(view);
   const [openId, setOpenId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('overview');
+  // undefined: dashboard; null: AR view at its station picker; a preset: AR view with those stations
+  const [ar, setAr] = useState<ArPreset | null | undefined>(arFromAddress);
   const { width } = useWindowDimensions();
   const wide = width >= 900;
 
   if (!fontsLoaded) {
     return <View style={{ flex: 1, backgroundColor: p.bg }} />;
+  }
+
+  if (ar !== undefined) {
+    return <ArView p={p} initial={ar} onClose={() => setAr(undefined)} />;
   }
 
   const machine = openId ? (machines.find((m) => m.id === openId) ?? null) : null;
@@ -67,7 +84,7 @@ export default function App() {
       />
       <ScrollView contentContainerStyle={{ padding: wide ? space.xl : space.lg, paddingBottom: space.xxl, alignItems: 'center' }}>
         <View style={{ width: '100%', maxWidth: 1180, gap: space.lg }}>
-          <ViewPicker p={p} view={view} setView={setView} />
+          <ViewPicker p={p} view={view} setView={setView} onAr={Platform.OS === 'web' ? () => setAr(machine && machine.id !== 'controller' ? { kits: [machine.id], scale: 1 } : null) : undefined} />
           {machine ? (
             <Detail p={p} machine={machine} tab={tab} now={now} wide={wide} source={source} />
           ) : (
@@ -177,7 +194,7 @@ function Overview({ p, snap, usable, freshness, now, wide }: { p: Palette; snap:
 }
 
 // ------------------------------------------------------------------- chrome
-function ViewPicker({ p, view, setView }: { p: Palette; view: DataView; setView: (v: DataView) => void }) {
+function ViewPicker({ p, view, setView, onAr }: { p: Palette; view: DataView; setView: (v: DataView) => void; onAr?: () => void }) {
   const options: { id: DataView; label: string }[] = [
     { id: 'live', label: 'Live rig' },
     { id: 'demo', label: 'Simulation' },
@@ -206,6 +223,18 @@ function ViewPicker({ p, view, setView }: { p: Palette; view: DataView; setView:
         <Body p={p} style={{ fontSize: 13, color: p.warn }}>
           Simulated data, not the real machines
         </Body>
+      ) : null}
+      {onAr ? (
+        <Pressable
+          onPress={onAr}
+          accessibilityRole="button"
+          accessibilityLabel="Open the AR view"
+          style={{ marginLeft: 'auto', paddingHorizontal: space.md, paddingVertical: 7, borderRadius: radius.md, borderWidth: 1, borderColor: p.line, backgroundColor: p.surface }}
+        >
+          <Label p={p} style={{ fontSize: 12, color: p.ink }}>
+            AR view
+          </Label>
+        </Pressable>
       ) : null}
     </View>
   );

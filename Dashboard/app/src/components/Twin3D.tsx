@@ -13,9 +13,9 @@ import { Card, Body, Label } from './ui';
 // eased over a fixed time, because most cylinders on the rig have no sensors.
 const SCALE = 0.1;      // mm -> scene units
 
-type Live = { travel: Record<string, number>; step: number; material: number };
+export type Live = { travel: Record<string, number>; step: number; material: number };
 
-function liveFrom(snap: Snapshot): Live {
+export function liveFrom(snap: Snapshot): Live {
   const travel: Record<string, number> = {};
   for (const a of snap.actuators ?? []) {
     travel[a.id] = a.travel ?? (a.position === 'a' ? 1 : 0);
@@ -24,7 +24,7 @@ function liveFrom(snap: Snapshot): Live {
   return { travel, step: snap.status?.step ?? 0, material: snap.status?.material ?? 0 };
 }
 
-type Built = {
+export type Built = {
   root: THREE.Group;
   groups: Record<string, THREE.Group>;
   part: THREE.Mesh;
@@ -40,7 +40,7 @@ type Built = {
 const PILE_SIZE = 6;
 const FLYERS = 3;
 
-function build(scene: THREE.Object3D, def: TwinDef): Built {
+export function build(scene: THREE.Object3D, def: TwinDef): Built {
   const flat = { flatShading: true };
   const metal = new THREE.MeshStandardMaterial({ color: '#959A9E', metalness: 0.4, roughness: 0.5, ...flat });
   const mechanism = new THREE.MeshStandardMaterial({ color: '#34373A', metalness: 0.45, roughness: 0.5, ...flat });
@@ -138,7 +138,7 @@ function build(scene: THREE.Object3D, def: TwinDef): Built {
 
 type Flyer = { pos: THREE.Vector3; target: THREE.Vector3; bin: number; material: number; t: number; turn: number };
 
-function Rig({ built, def, live, p }: { built: Built; def: TwinDef; live: React.MutableRefObject<Live>; p: Palette }) {
+export function Rig({ built, def, live, p }: { built: Built; def: TwinDef; live: React.MutableRefObject<Live>; p: Palette }) {
   const eased = useRef<Record<string, number>>({});
   const home = useMemo(() => new THREE.Vector3(...def.partHome), [def]);
   const state = useRef<PartState>({ mode: 'magazine', pos: new THREE.Vector3(...def.partHome), target: new THREE.Vector3(), bin: 0, material: 0, data: {} });
