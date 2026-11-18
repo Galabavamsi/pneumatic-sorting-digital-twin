@@ -188,9 +188,12 @@ function Rig({ built, def, live, p }: { built: Built; def: TwinDef; live: React.
       if (q.queue.length > 24) q.queue = [t.step];      // far behind (a hidden tab): just jump
     }
 
+    // A step is done once its cylinders have reached where the model is driving them. That
+    // target can be the live outputs rather than the step's command: the PLC sets its outputs
+    // a scan after it changes step, so a snapshot may show the new step with the old outputs.
     q.time += dt;
-    const arrived = (cmd: Record<string, number> | undefined) => !cmd || Object.keys(cmd).every((id) => Math.abs((v[id] ?? 0) - cmd[id]) < 0.01);
-    if (q.queue.length && q.time >= 0.08 && arrived(def.drive?.commands[q.step])) {
+    const arrived = (cmd: Record<string, number> | undefined) => !cmd || Object.keys(cmd).every((id) => Math.abs((v[id] ?? 0) - (q.travel[id] ?? 0)) < 0.01);
+    if (q.queue.length && q.time >= 0.08 && (arrived(def.drive?.commands[q.step]) || q.time > 1.5)) {
       q.step = q.queue.shift()!;
       q.time = 0;
       Object.assign(q.travel, def.drive?.commands[q.step]);
