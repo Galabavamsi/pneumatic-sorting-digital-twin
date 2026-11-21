@@ -39,6 +39,11 @@ The read-only dashboard in [Dashboard](Dashboard/README.md) has an AR view for M
 
 The clip is 12 seconds of a recording made in the headset on 2026-11-19: Kit 2's twin following the real controller beside the real kit. [Download the full recording](Presentation/kit-digital-twin/videos/quest-ar-demo.mp4?raw=true) (5 min 42 s, MP4, 41 MB; GitHub does not play it in the page). See [AR view (Meta Quest)](Dashboard/README.md#ar-view-meta-quest) for how it works.
 
+**Demo videos on YouTube:**
+
+- [AR view on a Meta Quest 3, live from the PLC](https://youtu.be/iDs-ykiL41c) (6 min 24 s)
+- [Web app with the live PLC link](https://youtube.com/shorts/x4Kn8ujB_XA) (1 min 26 s)
+
 ## Kit 1 — pneumatic sorting module
 
 ![Kit 1 pneumatic sorting station running in Unity](Documentation/Images/kit1-sorting-station.png)
